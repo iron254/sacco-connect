@@ -134,7 +134,7 @@ export default function Onboarding() {
     const parsed = nokSchema.safeParse(nok);
     if (!parsed.success) return toast.error(parsed.error.errors[0].message);
     setLoading(true);
-    const { error } = await supabase.from("next_of_kin").insert({ user_id: user.id, ...parsed.data });
+    const { error } = await supabase.from("next_of_kin").insert([{ user_id: user.id, ...parsed.data }]);
     setLoading(false);
     if (error) return toast.error(error.message);
     toast.success("Beneficiary added");
