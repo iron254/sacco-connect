@@ -14,16 +14,174 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      kyc_documents: {
+        Row: {
+          doc_type: Database["public"]["Enums"]["kyc_doc_type"]
+          id: string
+          notes: string | null
+          status: Database["public"]["Enums"]["kyc_status"]
+          storage_path: string
+          uploaded_at: string
+          user_id: string
+        }
+        Insert: {
+          doc_type: Database["public"]["Enums"]["kyc_doc_type"]
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          storage_path: string
+          uploaded_at?: string
+          user_id: string
+        }
+        Update: {
+          doc_type?: Database["public"]["Enums"]["kyc_doc_type"]
+          id?: string
+          notes?: string | null
+          status?: Database["public"]["Enums"]["kyc_status"]
+          storage_path?: string
+          uploaded_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      next_of_kin: {
+        Row: {
+          allocation_percentage: number
+          created_at: string
+          email: string | null
+          full_name: string
+          id: string
+          national_id: string | null
+          phone: string | null
+          relationship: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          allocation_percentage?: number
+          created_at?: string
+          email?: string | null
+          full_name: string
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          relationship: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          allocation_percentage?: number
+          created_at?: string
+          email?: string | null
+          full_name?: string
+          id?: string
+          national_id?: string | null
+          phone?: string | null
+          relationship?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          avatar_url: string | null
+          city: string | null
+          country: string | null
+          created_at: string
+          date_of_birth: string | null
+          full_name: string | null
+          id: string
+          kyc_status: Database["public"]["Enums"]["kyc_status"]
+          member_number: string | null
+          membership_tier: Database["public"]["Enums"]["membership_tier"]
+          national_id: string | null
+          onboarding_completed: boolean
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          address?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          full_name?: string | null
+          id: string
+          kyc_status?: Database["public"]["Enums"]["kyc_status"]
+          member_number?: string | null
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
+          national_id?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          address?: string | null
+          avatar_url?: string | null
+          city?: string | null
+          country?: string | null
+          created_at?: string
+          date_of_birth?: string | null
+          full_name?: string | null
+          id?: string
+          kyc_status?: Database["public"]["Enums"]["kyc_status"]
+          member_number?: string | null
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
+          national_id?: string | null
+          onboarding_completed?: boolean
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "member" | "teller" | "credit_officer" | "auditor" | "admin"
+      kyc_doc_type:
+        | "national_id_front"
+        | "national_id_back"
+        | "passport"
+        | "selfie"
+        | "signature"
+        | "proof_of_address"
+      kyc_status: "pending" | "submitted" | "verified" | "rejected"
+      membership_tier: "individual" | "corporate" | "youth"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +308,18 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["member", "teller", "credit_officer", "auditor", "admin"],
+      kyc_doc_type: [
+        "national_id_front",
+        "national_id_back",
+        "passport",
+        "selfie",
+        "signature",
+        "proof_of_address",
+      ],
+      kyc_status: ["pending", "submitted", "verified", "rejected"],
+      membership_tier: ["individual", "corporate", "youth"],
+    },
   },
 } as const
