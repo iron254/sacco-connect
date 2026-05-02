@@ -1,28 +1,48 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles } from "lucide-react";
+import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles, ArrowDownLeft } from "lucide-react";
+import { DepositDialog } from "@/components/DepositDialog";
 
-const wallets = [
-  { id: "savings", label: "Main Savings", icon: PiggyBank, balance: 0, currency: "KES", tone: "primary" as const },
-  { id: "shares", label: "Share Capital", icon: Wallet, balance: 0, currency: "KES", tone: "gold" as const },
-  { id: "benevolent", label: "Benevolent Fund", icon: HeartHandshake, balance: 0, currency: "KES", tone: "muted" as const },
-];
+type WalletRow = { id: string; wallet_type: "savings" | "shares" | "benevolent"; currency: string; balance: number };
+type TxRow = { id: string; tx_type: string; amount: number; currency: string; method: string; description: string | null; created_at: string; wallet_id: string };
+
+const walletMeta = {
+  savings: { label: "Main Savings", icon: PiggyBank, tone: "primary" as const },
+  shares: { label: "Share Capital", icon: Wallet, tone: "gold" as const },
+  benevolent: { label: "Benevolent Fund", icon: HeartHandshake, tone: "muted" as const },
+};
 
 export default function Dashboard() {
   const { user } = useAuth();
   const [profile, setProfile] = useState<any>(null);
   const [nokCount, setNokCount] = useState(0);
+  const [wallets, setWallets] = useState<WalletRow[]>([]);
+  const [txs, setTxs] = useState<TxRow[]>([]);
 
-  useEffect(() => {
+  const loadAll = useCallback(async () => {
     if (!user) return;
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle().then(({ data }) => setProfile(data));
-    supabase.from("next_of_kin").select("id", { count: "exact", head: true }).eq("user_id", user.id).then(({ count }) => setNokCount(count || 0));
+    const [{ data: prof }, { count }, { data: ws }, { data: tx }] = await Promise.all([
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+      supabase.from("next_of_kin").select("id", { count: "exact", head: true }).eq("user_id", user.id),
+      supabase.from("wallets").select("id, wallet_type, currency, balance").eq("user_id", user.id),
+      supabase.from("transactions").select("id, tx_type, amount, currency, method, description, created_at, wallet_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+    ]);
+    setProfile(prof);
+    setNokCount(count || 0);
+    setWallets((ws || []).map(w => ({ ...w, balance: Number(w.balance) })) as WalletRow[]);
+    setTxs((tx || []) as TxRow[]);
   }, [user]);
+
+  useEffect(() => { loadAll(); }, [loadAll]);
+
+  const orderedWallets: WalletRow[] = (["savings", "shares", "benevolent"] as const)
+    .map(t => wallets.find(w => w.wallet_type === t))
+    .filter(Boolean) as WalletRow[];
 
   const onboardingSteps = [
     { label: "Account created", done: true },
@@ -33,6 +53,11 @@ export default function Dashboard() {
   const completed = onboardingSteps.filter(s => s.done).length;
   const progress = (completed / onboardingSteps.length) * 100;
   const allDone = completed === onboardingSteps.length;
+
+  const sharesBalance = orderedWallets.find(w => w.wallet_type === "shares")?.balance ?? 0;
+  const eligibility = sharesBalance * 3;
+
+  const fmt = (n: number) => n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   return (
     <div className="space-y-8">
@@ -69,38 +94,85 @@ export default function Dashboard() {
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Your wallets</p>
             <h3 className="font-display text-2xl font-semibold">Balances</h3>
           </div>
-          <Button variant="outline" size="sm" disabled>Deposit (coming soon)</Button>
+          <DepositDialog
+            wallets={orderedWallets}
+            onSuccess={loadAll}
+            trigger={<Button variant="gold" size="sm" disabled={!orderedWallets.length}>Deposit</Button>}
+          />
         </div>
         <div className="grid gap-4 md:grid-cols-3">
-          {wallets.map(w => (
-            <Card key={w.id} className={`relative overflow-hidden p-6 shadow-card ${w.tone === "primary" ? "bg-gradient-primary text-primary-foreground" : ""}`}>
-              <div className="flex items-start justify-between">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-md ${w.tone === "primary" ? "bg-primary-foreground/15" : w.tone === "gold" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
-                  <w.icon className="h-5 w-5" />
+          {orderedWallets.map(w => {
+            const meta = walletMeta[w.wallet_type];
+            const Icon = meta.icon;
+            return (
+              <Card key={w.id} className={`relative overflow-hidden p-6 shadow-card ${meta.tone === "primary" ? "bg-gradient-primary text-primary-foreground" : ""}`}>
+                <div className="flex items-start justify-between">
+                  <div className={`flex h-10 w-10 items-center justify-center rounded-md ${meta.tone === "primary" ? "bg-primary-foreground/15" : meta.tone === "gold" ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"}`}>
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <span className={`text-xs uppercase tracking-wider ${meta.tone === "primary" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{w.currency}</span>
                 </div>
-                <span className={`text-xs uppercase tracking-wider ${w.tone === "primary" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{w.currency}</span>
-              </div>
-              <div className="mt-8">
-                <p className={`text-xs uppercase tracking-widest ${w.tone === "primary" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{w.label}</p>
-                <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{w.balance.toLocaleString()}.<span className="text-xl opacity-60">00</span></p>
-              </div>
-            </Card>
-          ))}
+                <div className="mt-8">
+                  <p className={`text-xs uppercase tracking-widest ${meta.tone === "primary" ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{meta.label}</p>
+                  <p className="mt-1 font-display text-3xl font-semibold tabular-nums">{fmt(w.balance)}</p>
+                </div>
+                <div className="mt-4">
+                  <DepositDialog
+                    wallets={orderedWallets}
+                    defaultWalletId={w.id}
+                    onSuccess={loadAll}
+                    trigger={
+                      <Button size="sm" variant={meta.tone === "primary" ? "hero" : "outline"} className="w-full">
+                        Deposit
+                      </Button>
+                    }
+                  />
+                </div>
+              </Card>
+            );
+          })}
         </div>
       </div>
 
-      {/* Quick actions placeholder */}
+      {/* Recent activity + loans */}
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="p-6 shadow-card lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
             <h4 className="font-display text-lg font-semibold">Recent activity</h4>
-            <Button variant="ghost" size="sm" disabled>View all</Button>
+            <span className="text-xs text-muted-foreground">{txs.length} latest</span>
           </div>
-          <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border py-12 text-center">
-            <ShieldAlert className="mb-3 h-8 w-8 text-muted-foreground/50" />
-            <p className="text-sm font-medium">No transactions yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">Once you make your first contribution, it'll appear here.</p>
-          </div>
+          {txs.length === 0 ? (
+            <div className="flex flex-col items-center justify-center rounded-md border border-dashed border-border py-12 text-center">
+              <ShieldAlert className="mb-3 h-8 w-8 text-muted-foreground/50" />
+              <p className="text-sm font-medium">No transactions yet</p>
+              <p className="mt-1 text-xs text-muted-foreground">Once you make your first contribution, it'll appear here.</p>
+            </div>
+          ) : (
+            <ul className="divide-y divide-border">
+              {txs.map(t => {
+                const w = wallets.find(x => x.id === t.wallet_id);
+                const isCredit = ["deposit", "transfer_in", "interest"].includes(t.tx_type);
+                return (
+                  <li key={t.id} className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isCredit ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
+                        <ArrowDownLeft className={`h-4 w-4 ${isCredit ? "" : "rotate-180"}`} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium capitalize">{t.tx_type.replace("_", " ")}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {w ? walletMeta[w.wallet_type].label : "Wallet"} · {t.method.replace("_", " ")} · {new Date(t.created_at).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <p className={`font-display text-sm font-semibold tabular-nums ${isCredit ? "text-success" : "text-destructive"}`}>
+                      {isCredit ? "+" : "−"} {t.currency} {fmt(Number(t.amount))}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </Card>
 
         <Card className="p-6 shadow-card">
@@ -109,8 +181,8 @@ export default function Dashboard() {
             <h4 className="font-display text-lg font-semibold">Loan eligibility</h4>
           </div>
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Available to borrow</p>
-          <p className="mt-1 font-display text-3xl font-semibold tabular-nums">KES 0</p>
-          <p className="mt-2 text-sm text-muted-foreground">Loan products unlock once you complete KYC and start saving. You'll be able to borrow up to 3× your share capital.</p>
+          <p className="mt-1 font-display text-3xl font-semibold tabular-nums">KES {fmt(eligibility)}</p>
+          <p className="mt-2 text-sm text-muted-foreground">Up to 3× your share capital. Grow your share wallet to unlock more.</p>
           <Button className="mt-4 w-full" variant="outline" disabled>Explore loans (Phase 3)</Button>
         </Card>
       </div>

@@ -137,6 +137,56 @@ export type Database = {
         }
         Relationships: []
       }
+      transactions: {
+        Row: {
+          amount: number
+          created_at: string
+          currency: string
+          description: string | null
+          id: string
+          method: Database["public"]["Enums"]["payment_method"]
+          reference: string | null
+          status: Database["public"]["Enums"]["transaction_status"]
+          tx_type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+          wallet_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          reference?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          tx_type: Database["public"]["Enums"]["transaction_type"]
+          user_id: string
+          wallet_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          currency?: string
+          description?: string | null
+          id?: string
+          method?: Database["public"]["Enums"]["payment_method"]
+          reference?: string | null
+          status?: Database["public"]["Enums"]["transaction_status"]
+          tx_type?: Database["public"]["Enums"]["transaction_type"]
+          user_id?: string
+          wallet_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_wallet_id_fkey"
+            columns: ["wallet_id"]
+            isOneToOne: false
+            referencedRelation: "wallets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -155,6 +205,36 @@ export type Database = {
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
+        }
+        Relationships: []
+      }
+      wallets: {
+        Row: {
+          balance: number
+          created_at: string
+          currency: string
+          id: string
+          updated_at: string
+          user_id: string
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+          user_id: string
+          wallet_type: Database["public"]["Enums"]["wallet_type"]
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          currency?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+          wallet_type?: Database["public"]["Enums"]["wallet_type"]
         }
         Relationships: []
       }
@@ -182,6 +262,16 @@ export type Database = {
         | "proof_of_address"
       kyc_status: "pending" | "submitted" | "verified" | "rejected"
       membership_tier: "individual" | "corporate" | "youth"
+      payment_method: "mpesa" | "bank_transfer" | "card" | "cash" | "internal"
+      transaction_status: "pending" | "completed" | "failed" | "reversed"
+      transaction_type:
+        | "deposit"
+        | "withdrawal"
+        | "transfer_in"
+        | "transfer_out"
+        | "interest"
+        | "fee"
+      wallet_type: "savings" | "shares" | "benevolent"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -320,6 +410,17 @@ export const Constants = {
       ],
       kyc_status: ["pending", "submitted", "verified", "rejected"],
       membership_tier: ["individual", "corporate", "youth"],
+      payment_method: ["mpesa", "bank_transfer", "card", "cash", "internal"],
+      transaction_status: ["pending", "completed", "failed", "reversed"],
+      transaction_type: [
+        "deposit",
+        "withdrawal",
+        "transfer_in",
+        "transfer_out",
+        "interest",
+        "fee",
+      ],
+      wallet_type: ["savings", "shares", "benevolent"],
     },
   },
 } as const
