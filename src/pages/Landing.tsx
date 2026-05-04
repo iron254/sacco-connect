@@ -37,6 +37,17 @@ export default function Landing() {
             <h1 className="font-display text-5xl font-semibold leading-[1.05] sm:text-6xl">
               Your savings.<br /><span className="text-accent">Your dividends.</span><br />Your co-operative.
             </h1>
+            <p className="mt-6 max-w-md text-lg text-primary-foreground/80">
+              Manage your shares, contributions and loans with the confidence of a traditional SACCO and the convenience of a modern bank.
+            </p>
+            <div className="mt-10 flex flex-wrap gap-3">
+              <Button variant="gold" size="lg" asChild>
+                <Link to="/auth?mode=signup">Open a member account</Link>
+              </Button>
+              <Button variant="hero" size="lg" asChild>
+                <Link to="/auth">Member sign-in</Link>
+              </Button>
+            </div>
           </div>
         </div>
       </section>
