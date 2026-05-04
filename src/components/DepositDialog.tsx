@@ -8,16 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2 } from "lucide-react";
+import { Loader2, Smartphone } from "lucide-react";
 
 type Wallet = { id: string; wallet_type: string; currency: string };
 
-const schema = z.object({
+const baseSchema = z.object({
   wallet_id: z.string().uuid("Select a wallet"),
   amount: z.number().positive("Amount must be greater than 0").max(10_000_000, "Amount too large"),
-  method: z.enum(["mpesa", "bank_transfer", "card", "cash"]),
   reference: z.string().trim().max(64).optional(),
 });
+
+const phoneSchema = z.string().regex(/^(?:254|\+254|0)?(7\d{8}|1\d{8})$/, "Enter a valid Kenyan phone (e.g. 0712345678)");
 
 interface Props {
   wallets: Wallet[];
@@ -40,10 +41,12 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState<"mpesa" | "bank_transfer" | "card" | "cash">("mpesa");
   const [reference, setReference] = useState("");
+  const [phone, setPhone] = useState("");
 
   const reset = () => {
     setAmount("");
     setReference("");
+    setPhone("");
     setMethod("mpesa");
   };
 
@@ -51,10 +54,9 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     e.preventDefault();
     if (!user) return;
 
-    const parsed = schema.safeParse({
+    const parsed = baseSchema.safeParse({
       wallet_id: walletId,
       amount: Number(amount),
-      method,
       reference: reference || undefined,
     });
     if (!parsed.success) {
@@ -63,6 +65,29 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     }
 
     setSubmitting(true);
+
+    if (method === "mpesa") {
+      const phoneCheck = phoneSchema.safeParse(phone);
+      if (!phoneCheck.success) {
+        setSubmitting(false);
+        toast({ title: "Invalid phone", description: phoneCheck.error.issues[0].message, variant: "destructive" });
+        return;
+      }
+      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
+        body: { wallet_id: parsed.data.wallet_id, amount: parsed.data.amount, phone },
+      });
+      setSubmitting(false);
+      if (error || (data as any)?.error) {
+        toast({ title: "STK push failed", description: (data as any)?.error || error?.message || "Try again", variant: "destructive" });
+        return;
+      }
+      toast({ title: "Check your phone", description: "Enter your M-Pesa PIN to complete the deposit. Your balance will update shortly." });
+      reset();
+      setOpen(false);
+      onSuccess?.();
+      return;
+    }
+
     const { error } = await supabase.from("transactions").insert({
       user_id: user.id,
       wallet_id: parsed.data.wallet_id,
@@ -70,9 +95,9 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       amount: parsed.data.amount,
       currency: "KES",
       status: "completed",
-      method: parsed.data.method,
+      method,
       reference: parsed.data.reference,
-      description: `Deposit via ${parsed.data.method}`,
+      description: `Deposit via ${method}`,
     });
     setSubmitting(false);
 
@@ -92,7 +117,11 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display">Make a deposit</DialogTitle>
-          <DialogDescription>Funds are credited to your selected wallet immediately.</DialogDescription>
+          <DialogDescription>
+            {method === "mpesa"
+              ? "We'll send an M-Pesa STK push to your phone."
+              : "Funds are credited to your selected wallet immediately."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
@@ -116,23 +145,35 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
             <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
               <SelectTrigger id="method"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mpesa">M-Pesa</SelectItem>
+                <SelectItem value="mpesa">M-Pesa (STK Push)</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer</SelectItem>
                 <SelectItem value="card">Card</SelectItem>
                 <SelectItem value="cash">Cash (at branch)</SelectItem>
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="reference">Reference (optional)</Label>
-            <Input id="reference" maxLength={64} placeholder="e.g. M-Pesa code"
-              value={reference} onChange={e => setReference(e.target.value)} />
-          </div>
+          {method === "mpesa" ? (
+            <div className="space-y-2">
+              <Label htmlFor="phone">M-Pesa phone number</Label>
+              <div className="relative">
+                <Smartphone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input id="phone" type="tel" inputMode="tel" placeholder="0712 345 678" className="pl-9"
+                  value={phone} onChange={e => setPhone(e.target.value)} required />
+              </div>
+              <p className="text-xs text-muted-foreground">Safaricom number registered for M-Pesa.</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Label htmlFor="reference">Reference (optional)</Label>
+              <Input id="reference" maxLength={64} placeholder="e.g. bank slip number"
+                value={reference} onChange={e => setReference(e.target.value)} />
+            </div>
+          )}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
             <Button type="submit" variant="gold" disabled={submitting || !walletId}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              Deposit
+              {method === "mpesa" ? "Send STK push" : "Deposit"}
             </Button>
           </DialogFooter>
         </form>
