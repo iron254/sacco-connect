@@ -140,6 +140,7 @@ export type Database = {
       transactions: {
         Row: {
           amount: number
+          checkout_request_id: string | null
           created_at: string
           currency: string
           description: string | null
@@ -153,6 +154,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          checkout_request_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
@@ -166,6 +168,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          checkout_request_id?: string | null
           created_at?: string
           currency?: string
           description?: string | null
