@@ -34,10 +34,6 @@ export default function Landing() {
         </div>
         <div className="container relative grid min-h-[640px] items-center gap-8 py-32 lg:grid-cols-2">
           <div className="max-w-xl text-primary-foreground">
-            <div className="mb-6 inline-flex items-center gap-2 rounded-full border border-primary-foreground/20 bg-primary-foreground/5 px-4 py-1.5 text-xs uppercase tracking-widest backdrop-blur-sm">
-              <span className="h-1.5 w-1.5 rounded-full bg-accent" />
-              Trusted since 1968
-            </div>
             <h1 className="font-display text-5xl font-semibold leading-[1.05] sm:text-6xl">
               Your savings.<br /><span className="text-accent">Your dividends.</span><br />Your co-operative.
             </h1>
@@ -51,14 +47,6 @@ export default function Landing() {
               <Button variant="hero" size="lg" asChild>
                 <Link to="/auth">Member sign-in</Link>
               </Button>
-            </div>
-            <div className="mt-12 grid grid-cols-3 gap-6 border-t border-primary-foreground/15 pt-8">
-              {[["48K+", "Active members"], ["KES 12B", "Assets under mgmt"], ["14.2%", "2025 dividend"]].map(([v, l]) => (
-                <div key={l}>
-                  <div className="font-display text-2xl text-accent">{v}</div>
-                  <div className="text-xs uppercase tracking-wider text-primary-foreground/60">{l}</div>
-                </div>
-              ))}
             </div>
           </div>
         </div>
