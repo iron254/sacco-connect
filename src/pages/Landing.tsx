@@ -75,7 +75,7 @@ export default function Landing() {
       {/* CTA */}
       <section className="bg-primary text-primary-foreground">
         <div className="container py-20 text-center">
-          <h2 className="font-display text-4xl font-semibold">Join 48,000+ members building wealth together</h2>
+          <h2 className="font-display text-4xl font-semibold">Join members building wealth together</h2>
           <p className="mx-auto mt-4 max-w-xl text-primary-foreground/75">Membership starts from KES 1,000. Apply online in minutes.</p>
           <Button variant="gold" size="lg" className="mt-8" asChild>
             <Link to="/auth?mode=signup">Begin your application</Link>

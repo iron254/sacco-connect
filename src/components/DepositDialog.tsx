@@ -145,7 +145,7 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
             <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
               <SelectTrigger id="method"><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="mpesa">M-Pesa (STK Push)</SelectItem>
+                <SelectItem value="mpesa">M-Pesa</SelectItem>
                 <SelectItem value="bank_transfer">Bank transfer</SelectItem>
                 <SelectItem value="card">Card</SelectItem>
                 <SelectItem value="cash">Cash (at branch)</SelectItem>
@@ -173,7 +173,7 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
             <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
             <Button type="submit" variant="gold" disabled={submitting || !walletId}>
               {submitting && <Loader2 className="h-4 w-4 animate-spin" />}
-              {method === "mpesa" ? "Send STK push" : "Deposit"}
+              {method === "mpesa" ? "Pay" : "Deposit"}
             </Button>
           </DialogFooter>
         </form>
