@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Smartphone } from "lucide-react";
+import { Loader2, Smartphone, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 type Wallet = { id: string; wallet_type: string; currency: string };
 
@@ -43,7 +43,17 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
   const [method, setMethod] = useState<"mpesa" | "bank_transfer" | "card" | "cash">("mpesa");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
-  const [step, setStep] = useState<"form" | "confirm">("form");
+  const [step, setStep] = useState<"form" | "confirm" | "status">("form");
+  const [txStatus, setTxStatus] = useState<"pending" | "completed" | "failed">("pending");
+  const [statusMsg, setStatusMsg] = useState<string>("Waiting for you to enter your M-Pesa PIN…");
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
+  const pollRef = useRef<number | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const cleanupWatchers = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+  };
 
   const reset = () => {
     setAmount("");
@@ -51,7 +61,13 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     setPhone("");
     setMethod("mpesa");
     setStep("form");
+    setCheckoutId(null);
+    setTxStatus("pending");
+    setStatusMsg("Waiting for you to enter your M-Pesa PIN…");
+    cleanupWatchers();
   };
+
+  useEffect(() => () => cleanupWatchers(), []);
 
   const formatPhone = (raw: string) => {
     const digits = raw.replace(/\D/g, "");
@@ -117,6 +133,48 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     onSuccess?.();
   };
 
+  const watchTransaction = (cid: string) => {
+    cleanupWatchers();
+
+    const apply = (status: string) => {
+      if (status === "completed") {
+        setTxStatus("completed");
+        setStatusMsg("Payment received. Your wallet has been credited.");
+        cleanupWatchers();
+        onSuccess?.();
+      } else if (status === "failed" || status === "cancelled") {
+        setTxStatus("failed");
+        setStatusMsg("Payment was not completed. You can try again.");
+        cleanupWatchers();
+      }
+    };
+
+    channelRef.current = supabase
+      .channel(`tx-${cid}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "transactions",
+        filter: `checkout_request_id=eq.${cid}`,
+      }, (payload) => apply((payload.new as any).status))
+      .subscribe();
+
+    // Fallback poll every 4s in case realtime misses
+    pollRef.current = window.setInterval(async () => {
+      const { data } = await supabase.from("transactions")
+        .select("status").eq("checkout_request_id", cid).maybeSingle();
+      if (data?.status) apply(data.status);
+    }, 4000);
+
+    // Stop polling after 2 min
+    window.setTimeout(() => {
+      if (pollRef.current) {
+        setTxStatus((s) => {
+          if (s === "pending") setStatusMsg("Still waiting… check your phone or try again.");
+          return s;
+        });
+      }
+    }, 120000);
+  };
+
   const confirmMpesa = async () => {
     const data = validateForm();
     if (!data || !user) return;
@@ -129,10 +187,12 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       toast({ title: "STK push failed", description: (res as any)?.error || error?.message || "Try again", variant: "destructive" });
       return;
     }
-    toast({ title: "Check your phone", description: "Enter your M-Pesa PIN to complete the deposit. Your balance will update shortly." });
-    reset();
-    setOpen(false);
-    onSuccess?.();
+    const cid = (res as any)?.checkout_request_id as string | undefined;
+    setCheckoutId(cid ?? null);
+    setTxStatus("pending");
+    setStatusMsg("STK push sent. Enter your M-Pesa PIN on your phone…");
+    setStep("status");
+    if (cid) watchTransaction(cid);
   };
 
   const walletLabel = labels[wallets.find(w => w.id === walletId)?.wallet_type ?? ""] ?? "Wallet";
@@ -144,18 +204,59 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display">
-            {step === "confirm" ? "Confirm payment" : "Make a deposit"}
+            {step === "status" ? "Payment status" : step === "confirm" ? "Confirm payment" : "Make a deposit"}
           </DialogTitle>
           <DialogDescription>
-            {step === "confirm"
-              ? "Review the details below. We'll send an M-Pesa STK push to your phone."
-              : method === "mpesa"
-                ? "We'll send an M-Pesa STK push to your phone."
-                : "Funds are credited to your selected wallet immediately."}
+            {step === "status"
+              ? "We're waiting for confirmation from M-Pesa."
+              : step === "confirm"
+                ? "Review the details below. We'll send an M-Pesa STK push to your phone."
+                : method === "mpesa"
+                  ? "We'll send an M-Pesa STK push to your phone."
+                  : "Funds are credited to your selected wallet immediately."}
           </DialogDescription>
         </DialogHeader>
 
-        {step === "confirm" ? (
+        {step === "status" ? (
+          <div className="space-y-4">
+            <div className={`rounded-md border p-5 flex items-start gap-4 ${
+              txStatus === "completed" ? "border-green-500/30 bg-green-500/5"
+              : txStatus === "failed" ? "border-destructive/30 bg-destructive/5"
+              : "border-border bg-muted/30"
+            }`}>
+              <div className="mt-0.5">
+                {txStatus === "completed" ? (
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                ) : txStatus === "failed" ? (
+                  <XCircle className="h-6 w-6 text-destructive" />
+                ) : (
+                  <Clock className="h-6 w-6 text-muted-foreground animate-pulse" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold capitalize">{txStatus}</span>
+                  {txStatus === "pending" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                </div>
+                <p className="text-sm text-muted-foreground">{statusMsg}</p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  KES {amountNum.toLocaleString()} • {formatPhone(phone)}
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              {txStatus === "pending" ? (
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); }}>
+                  Close
+                </Button>
+              ) : (
+                <Button type="button" variant="gold" onClick={() => { reset(); setOpen(false); }}>
+                  Done
+                </Button>
+              )}
+            </DialogFooter>
+          </div>
+        ) : step === "confirm" ? (
           <div className="space-y-4">
             <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
