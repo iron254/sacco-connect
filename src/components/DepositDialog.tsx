@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "@/hooks/use-toast";
-import { Loader2, Smartphone } from "lucide-react";
+import { Loader2, Smartphone, CheckCircle2, XCircle, Clock } from "lucide-react";
 
 type Wallet = { id: string; wallet_type: string; currency: string };
 
@@ -43,7 +43,17 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
   const [method, setMethod] = useState<"mpesa" | "bank_transfer" | "card" | "cash">("mpesa");
   const [reference, setReference] = useState("");
   const [phone, setPhone] = useState("");
-  const [step, setStep] = useState<"form" | "confirm">("form");
+  const [step, setStep] = useState<"form" | "confirm" | "status">("form");
+  const [txStatus, setTxStatus] = useState<"pending" | "completed" | "failed">("pending");
+  const [statusMsg, setStatusMsg] = useState<string>("Waiting for you to enter your M-Pesa PIN…");
+  const [checkoutId, setCheckoutId] = useState<string | null>(null);
+  const pollRef = useRef<number | null>(null);
+  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
+
+  const cleanupWatchers = () => {
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null; }
+    if (channelRef.current) { supabase.removeChannel(channelRef.current); channelRef.current = null; }
+  };
 
   const reset = () => {
     setAmount("");
@@ -51,7 +61,13 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     setPhone("");
     setMethod("mpesa");
     setStep("form");
+    setCheckoutId(null);
+    setTxStatus("pending");
+    setStatusMsg("Waiting for you to enter your M-Pesa PIN…");
+    cleanupWatchers();
   };
+
+  useEffect(() => () => cleanupWatchers(), []);
 
   const formatPhone = (raw: string) => {
     const digits = raw.replace(/\D/g, "");
