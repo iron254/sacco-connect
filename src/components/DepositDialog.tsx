@@ -133,6 +133,48 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     onSuccess?.();
   };
 
+  const watchTransaction = (cid: string) => {
+    cleanupWatchers();
+
+    const apply = (status: string) => {
+      if (status === "completed") {
+        setTxStatus("completed");
+        setStatusMsg("Payment received. Your wallet has been credited.");
+        cleanupWatchers();
+        onSuccess?.();
+      } else if (status === "failed" || status === "cancelled") {
+        setTxStatus("failed");
+        setStatusMsg("Payment was not completed. You can try again.");
+        cleanupWatchers();
+      }
+    };
+
+    channelRef.current = supabase
+      .channel(`tx-${cid}`)
+      .on("postgres_changes", {
+        event: "UPDATE", schema: "public", table: "transactions",
+        filter: `checkout_request_id=eq.${cid}`,
+      }, (payload) => apply((payload.new as any).status))
+      .subscribe();
+
+    // Fallback poll every 4s in case realtime misses
+    pollRef.current = window.setInterval(async () => {
+      const { data } = await supabase.from("transactions")
+        .select("status").eq("checkout_request_id", cid).maybeSingle();
+      if (data?.status) apply(data.status);
+    }, 4000);
+
+    // Stop polling after 2 min
+    window.setTimeout(() => {
+      if (pollRef.current) {
+        setTxStatus((s) => {
+          if (s === "pending") setStatusMsg("Still waiting… check your phone or try again.");
+          return s;
+        });
+      }
+    }, 120000);
+  };
+
   const confirmMpesa = async () => {
     const data = validateForm();
     if (!data || !user) return;
@@ -145,10 +187,12 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       toast({ title: "STK push failed", description: (res as any)?.error || error?.message || "Try again", variant: "destructive" });
       return;
     }
-    toast({ title: "Check your phone", description: "Enter your M-Pesa PIN to complete the deposit. Your balance will update shortly." });
-    reset();
-    setOpen(false);
-    onSuccess?.();
+    const cid = (res as any)?.checkout_request_id as string | undefined;
+    setCheckoutId(cid ?? null);
+    setTxStatus("pending");
+    setStatusMsg("STK push sent. Enter your M-Pesa PIN on your phone…");
+    setStep("status");
+    if (cid) watchTransaction(cid);
   };
 
   const walletLabel = labels[wallets.find(w => w.id === walletId)?.wallet_type ?? ""] ?? "Wallet";
