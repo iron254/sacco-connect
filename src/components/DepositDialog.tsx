@@ -17,6 +17,7 @@ const baseSchema = z.object({
   amount: z.number().positive("Amount must be greater than 0").max(10_000_000, "Amount too large"),
   reference: z.string().trim().max(64).optional(),
 });
+type BaseData = z.infer<typeof baseSchema>;
 
 const phoneSchema = z.string().regex(/^(?:254|\+254|0)?(7\d{8}|1\d{8})$/, "Enter a valid Kenyan phone (e.g. 0712345678)");
 
@@ -91,7 +92,7 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
     void submitNonMpesa(data);
   };
 
-  const submitNonMpesa = async (data: { wallet_id: string; amount: number; reference?: string }) => {
+  const submitNonMpesa = async (data: BaseData) => {
     if (!user) return;
     setSubmitting(true);
     const { error } = await supabase.from("transactions").insert({
