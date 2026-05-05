@@ -204,18 +204,59 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display">
-            {step === "confirm" ? "Confirm payment" : "Make a deposit"}
+            {step === "status" ? "Payment status" : step === "confirm" ? "Confirm payment" : "Make a deposit"}
           </DialogTitle>
           <DialogDescription>
-            {step === "confirm"
-              ? "Review the details below. We'll send an M-Pesa STK push to your phone."
-              : method === "mpesa"
-                ? "We'll send an M-Pesa STK push to your phone."
-                : "Funds are credited to your selected wallet immediately."}
+            {step === "status"
+              ? "We're waiting for confirmation from M-Pesa."
+              : step === "confirm"
+                ? "Review the details below. We'll send an M-Pesa STK push to your phone."
+                : method === "mpesa"
+                  ? "We'll send an M-Pesa STK push to your phone."
+                  : "Funds are credited to your selected wallet immediately."}
           </DialogDescription>
         </DialogHeader>
 
-        {step === "confirm" ? (
+        {step === "status" ? (
+          <div className="space-y-4">
+            <div className={`rounded-md border p-5 flex items-start gap-4 ${
+              txStatus === "completed" ? "border-green-500/30 bg-green-500/5"
+              : txStatus === "failed" ? "border-destructive/30 bg-destructive/5"
+              : "border-border bg-muted/30"
+            }`}>
+              <div className="mt-0.5">
+                {txStatus === "completed" ? (
+                  <CheckCircle2 className="h-6 w-6 text-green-600" />
+                ) : txStatus === "failed" ? (
+                  <XCircle className="h-6 w-6 text-destructive" />
+                ) : (
+                  <Clock className="h-6 w-6 text-muted-foreground animate-pulse" />
+                )}
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold capitalize">{txStatus}</span>
+                  {txStatus === "pending" && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                </div>
+                <p className="text-sm text-muted-foreground">{statusMsg}</p>
+                <p className="text-xs text-muted-foreground pt-1">
+                  KES {amountNum.toLocaleString()} • {formatPhone(phone)}
+                </p>
+              </div>
+            </div>
+            <DialogFooter>
+              {txStatus === "pending" ? (
+                <Button type="button" variant="outline" onClick={() => { setOpen(false); }}>
+                  Close
+                </Button>
+              ) : (
+                <Button type="button" variant="gold" onClick={() => { reset(); setOpen(false); }}>
+                  Done
+                </Button>
+              )}
+            </DialogFooter>
+          </div>
+        ) : step === "confirm" ? (
           <div className="space-y-4">
             <div className="rounded-md border border-border bg-muted/30 p-4 space-y-3">
               <div className="flex items-center justify-between">
