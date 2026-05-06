@@ -3,10 +3,12 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck } from "lucide-react";
+import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield } from "lucide-react";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useAdmin } from "@/hooks/useAdmin";
+import { toast } from "sonner";
 
 const nav = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
@@ -20,7 +22,15 @@ const nav = [
 export default function AppLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
+  const { isAdmin } = useAdmin();
   const [profile, setProfile] = useState<{ full_name: string | null; member_number: string | null; kyc_status: string } | null>(null);
+
+  const claimAdmin = async () => {
+    const { data, error } = await supabase.rpc("claim_admin_if_none");
+    if (error) return toast.error(error.message);
+    if (data) { toast.success("You are now admin. Reloading…"); setTimeout(() => location.reload(), 600); }
+    else toast.error("An admin already exists.");
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -48,6 +58,20 @@ export default function AppLayout() {
               {soon && <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-sidebar-foreground/60">Soon</span>}
             </NavLink>
           ))}
+          {isAdmin && (
+            <NavLink to="/admin" className={({ isActive }) => cn(
+              "mt-4 flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-base",
+              isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+            )}>
+              <Shield className="h-4 w-4" />
+              <span className="flex-1">Admin</span>
+            </NavLink>
+          )}
+          {!isAdmin && (
+            <button onClick={claimAdmin} className="mt-4 flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/80">
+              <Shield className="h-3.5 w-3.5" /> Claim admin (first user)
+            </button>
+          )}
         </nav>
         <div className="border-t border-sidebar-border p-4">
           <NavLink to="/settings" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground">
