@@ -120,7 +120,7 @@ export default function Admin() {
       </div>
 
       {/* Summary cards */}
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-5">
         <Card className="p-5">
           <div className="flex items-center gap-3"><Users className="h-5 w-5 text-primary" /><span className="text-xs uppercase tracking-widest text-muted-foreground">Members</span></div>
           <p className="mt-3 font-display text-2xl font-semibold">{profiles.length}</p>
@@ -136,6 +136,10 @@ export default function Admin() {
         <Card className="p-5">
           <div className="flex items-center gap-3"><FileCheck2 className="h-5 w-5 text-primary" /><span className="text-xs uppercase tracking-widest text-muted-foreground">Pending KYC</span></div>
           <p className="mt-3 font-display text-2xl font-semibold">{kyc.filter(k => k.status === "submitted" || k.status === "pending").length}</p>
+        </Card>
+        <Card className="p-5">
+          <div className="flex items-center gap-3"><HandCoins className="h-5 w-5 text-primary" /><span className="text-xs uppercase tracking-widest text-muted-foreground">Pending loans</span></div>
+          <p className="mt-3 font-display text-2xl font-semibold">{pendingLoanCount}</p>
         </Card>
       </div>
 
