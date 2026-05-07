@@ -6,14 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2 } from "lucide-react";
+import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2, HandCoins } from "lucide-react";
 
 type Profile = { id: string; full_name: string | null; member_number: string | null; phone: string | null; kyc_status: string; created_at: string };
 type WalletRow = { id: string; user_id: string; wallet_type: string; currency: string; balance: number };
 type Tx = { id: string; user_id: string; tx_type: string; amount: number; currency: string; method: string; status: string; created_at: string; reference: string | null };
 type Kyc = { id: string; user_id: string; doc_type: string; status: string; storage_path: string; uploaded_at: string; notes: string | null };
 type RoleRow = { id: string; user_id: string; role: string };
+type Loan = { id: string; user_id: string; principal: number; term_months: number; interest_rate: number; monthly_payment: number; purpose: string | null; status: "pending" | "approved" | "rejected" | "active" | "closed"; created_at: string; rejection_reason: string | null };
 
 const roles = ["member", "teller", "credit_officer", "auditor", "admin"] as const;
 
