@@ -14,7 +14,7 @@ type TxRow = { id: string; tx_type: string; amount: number; currency: string; me
 const walletMeta = {
   savings: { label: "Main Savings", icon: PiggyBank, tone: "primary" as const },
   shares: { label: "Share Capital", icon: Wallet, tone: "gold" as const },
-  benevolent: { label: "Benevolent Fund", icon: HeartHandshake, tone: "muted" as const },
+  benevolent: { label: "Charitable Fund", icon: HeartHandshake, tone: "muted" as const },
 };
 
 export default function Dashboard() {
@@ -183,7 +183,7 @@ export default function Dashboard() {
           <p className="text-xs uppercase tracking-widest text-muted-foreground">Available to borrow</p>
           <p className="mt-1 font-display text-3xl font-semibold tabular-nums">KES {fmt(eligibility)}</p>
           <p className="mt-2 text-sm text-muted-foreground">Up to 3× your share capital. Grow your share wallet to unlock more.</p>
-          <Button className="mt-4 w-full" variant="outline" disabled>Explore loans (Phase 3)</Button>
+          <Button className="mt-4 w-full" variant="outline" asChild><Link to="/loans">Explore loans</Link></Button>
         </Card>
       </div>
     </div>

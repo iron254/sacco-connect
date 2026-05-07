@@ -216,7 +216,7 @@ export default function Admin() {
             <div className="mb-4 grid gap-3 md:grid-cols-3">
               {(["savings", "shares", "benevolent"] as const).map(t => (
                 <div key={t} className="rounded-md border border-border p-4">
-                  <p className="text-xs uppercase tracking-widest text-muted-foreground">{t}</p>
+                  <p className="text-xs uppercase tracking-widest text-muted-foreground">{t === "benevolent" ? "charitable" : t}</p>
                   <p className="mt-1 font-display text-xl font-semibold">KES {fmt(totals[t] || 0)}</p>
                 </div>
               ))}
@@ -232,7 +232,7 @@ export default function Admin() {
                     return (
                       <tr key={w.id} className="border-t border-border">
                         <td className="py-2.5">{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
-                        <td className="capitalize">{w.wallet_type}</td>
+                        <td className="capitalize">{w.wallet_type === "benevolent" ? "charitable" : w.wallet_type}</td>
                         <td className="font-medium tabular-nums">{w.currency} {fmt(w.balance)}</td>
                       </tr>
                     );

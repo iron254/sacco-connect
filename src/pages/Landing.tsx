@@ -5,7 +5,7 @@ import { ShieldCheck, Banknote, Users, TrendingUp, FileText, Bell } from "lucide
 import heroImg from "@/assets/hero-banking.jpg";
 
 const features = [
-  { icon: Banknote, title: "Multi-wallet savings", desc: "Separate balances for savings, shares and benevolent funds — always reconciled." },
+  { icon: Banknote, title: "Multi-wallet savings", desc: "Separate balances for savings, shares and charitable funds — always reconciled." },
   { icon: TrendingUp, title: "Loan multipliers", desc: "See exactly how much you can borrow against your share capital in real time." },
   { icon: Users, title: "Digital guarantorship", desc: "Request and approve loan guarantees in-app — no more paper forms." },
   { icon: FileText, title: "Instant statements", desc: "Generate audit-ready PDF statements for any date range in seconds." },

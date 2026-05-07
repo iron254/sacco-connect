@@ -13,7 +13,7 @@ import { toast } from "sonner";
 const nav = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
   { to: "/wallets", icon: Wallet, label: "Wallets", soon: true },
-  { to: "/loans", icon: HandCoins, label: "Loans", soon: true },
+  { to: "/loans", icon: HandCoins, label: "Loans" },
   { to: "/guarantors", icon: Users, label: "Guarantors", soon: true },
   { to: "/statements", icon: FileText, label: "Statements", soon: true },
   { to: "/notifications", icon: Bell, label: "Notifications", soon: true },
