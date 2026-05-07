@@ -44,6 +44,54 @@ export type Database = {
         }
         Relationships: []
       }
+      loans: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          interest_rate: number
+          monthly_payment: number
+          principal: number
+          purpose: string | null
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["loan_status"]
+          term_months: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          interest_rate?: number
+          monthly_payment?: number
+          principal: number
+          purpose?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["loan_status"]
+          term_months: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          interest_rate?: number
+          monthly_payment?: number
+          principal?: number
+          purpose?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["loan_status"]
+          term_months?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       next_of_kin: {
         Row: {
           allocation_percentage: number
@@ -265,6 +313,7 @@ export type Database = {
         | "signature"
         | "proof_of_address"
       kyc_status: "pending" | "submitted" | "verified" | "rejected"
+      loan_status: "pending" | "approved" | "rejected" | "active" | "closed"
       membership_tier: "individual" | "corporate" | "youth"
       payment_method: "mpesa" | "bank_transfer" | "card" | "cash" | "internal"
       transaction_status: "pending" | "completed" | "failed" | "reversed"
@@ -413,6 +462,7 @@ export const Constants = {
         "proof_of_address",
       ],
       kyc_status: ["pending", "submitted", "verified", "rejected"],
+      loan_status: ["pending", "approved", "rejected", "active", "closed"],
       membership_tier: ["individual", "corporate", "youth"],
       payment_method: ["mpesa", "bank_transfer", "card", "cash", "internal"],
       transaction_status: ["pending", "completed", "failed", "reversed"],
