@@ -147,6 +147,7 @@ export default function Admin() {
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="kyc">KYC review</TabsTrigger>
+          <TabsTrigger value="loans">Loans {pendingLoanCount > 0 && <Badge variant="secondary" className="ml-1.5">{pendingLoanCount}</Badge>}</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
