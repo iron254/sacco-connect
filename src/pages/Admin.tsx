@@ -92,6 +92,26 @@ export default function Admin() {
 
   const userRole = (id: string) => allRoles.find(r => r.user_id === id)?.role || "member";
 
+  const filteredLoans = loans.filter(l => loanStatus === "all" || l.status === loanStatus);
+  const pendingLoanCount = loans.filter(l => l.status === "pending").length;
+
+  const approveLoan = async (l: Loan) => {
+    const { error } = await supabase.from("loans").update({ status: "approved", approved_at: new Date().toISOString() }).eq("id", l.id);
+    if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
+    toast({ title: "Loan approved" });
+    load();
+  };
+
+  const submitReject = async () => {
+    if (!rejectFor) return;
+    if (!rejectReason.trim()) return toast({ title: "Reason required", variant: "destructive" });
+    const { error } = await supabase.from("loans").update({ status: "rejected", rejection_reason: rejectReason.trim() }).eq("id", rejectFor.id);
+    if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
+    toast({ title: "Loan rejected" });
+    setRejectFor(null); setRejectReason("");
+    load();
+  };
+
   return (
     <div className="space-y-8">
       <div>
