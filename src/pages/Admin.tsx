@@ -205,6 +205,81 @@ export default function Admin() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="loans">
+          <Card className="p-5">
+            <div className="mb-4 flex items-center gap-3">
+              <Select value={loanStatus} onValueChange={setLoanStatus}>
+                <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                  <SelectItem value="active">Active</SelectItem>
+                  <SelectItem value="closed">Closed</SelectItem>
+                </SelectContent>
+              </Select>
+              <span className="text-xs text-muted-foreground">{filteredLoans.length} shown</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="text-left text-xs uppercase text-muted-foreground">
+                  <tr><th className="py-2">Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th></tr>
+                </thead>
+                <tbody>
+                  {filteredLoans.map(l => {
+                    const m = memberById(l.user_id);
+                    return (
+                      <tr key={l.id} className="border-t border-border align-top">
+                        <td className="py-3 text-xs text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</td>
+                        <td>{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
+                        <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
+                        <td>{l.term_months} mo</td>
+                        <td className="tabular-nums">KES {fmt(l.monthly_payment)}</td>
+                        <td className="max-w-xs text-xs text-muted-foreground">{l.purpose || "—"}{l.rejection_reason && <div className="mt-1 text-destructive">Rejected: {l.rejection_reason}</div>}</td>
+                        <td><Badge variant={l.status === "approved" || l.status === "active" ? "default" : l.status === "rejected" ? "destructive" : l.status === "closed" ? "outline" : "secondary"}>{l.status}</Badge></td>
+                        <td className="text-right">
+                          {l.status === "pending" && (
+                            <div className="flex justify-end gap-2">
+                              <Button size="sm" onClick={() => approveLoan(l)}>Approve</Button>
+                              <Button size="sm" variant="destructive" onClick={() => { setRejectFor(l); setRejectReason(""); }}>Reject</Button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              {filteredLoans.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No loans</p>}
+            </div>
+          </Card>
+
+          <Dialog open={!!rejectFor} onOpenChange={(o) => { if (!o) { setRejectFor(null); setRejectReason(""); } }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reject loan application</DialogTitle>
+              </DialogHeader>
+              {rejectFor && (
+                <div className="space-y-3 text-sm">
+                  <div className="rounded-md bg-muted/50 p-3">
+                    <div><span className="text-muted-foreground">Member:</span> {memberById(rejectFor.user_id)?.full_name || "—"}</div>
+                    <div><span className="text-muted-foreground">Amount:</span> KES {fmt(rejectFor.principal)} over {rejectFor.term_months} months</div>
+                  </div>
+                  <div>
+                    <Label htmlFor="reason">Reason for rejection</Label>
+                    <Textarea id="reason" value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Explain why this loan is being rejected…" rows={4} />
+                  </div>
+                </div>
+              )}
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setRejectFor(null)}>Cancel</Button>
+                <Button variant="destructive" onClick={submitReject}>Confirm rejection</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
         <TabsContent value="transactions">
           <Card className="p-5">
             <div className="mb-4 flex items-center gap-3">
