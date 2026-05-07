@@ -29,22 +29,28 @@ export default function Admin() {
   const [txs, setTxs] = useState<Tx[]>([]);
   const [kyc, setKyc] = useState<Kyc[]>([]);
   const [allRoles, setAllRoles] = useState<RoleRow[]>([]);
+  const [loans, setLoans] = useState<Loan[]>([]);
   const [search, setSearch] = useState("");
   const [txStatus, setTxStatus] = useState<string>("all");
+  const [loanStatus, setLoanStatus] = useState<string>("pending");
+  const [rejectFor, setRejectFor] = useState<Loan | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   const load = useCallback(async () => {
-    const [p, w, t, k, r] = await Promise.all([
+    const [p, w, t, k, r, l] = await Promise.all([
       supabase.from("profiles").select("id, full_name, member_number, phone, kyc_status, created_at").order("created_at", { ascending: false }),
       supabase.from("wallets").select("id, user_id, wallet_type, currency, balance"),
       supabase.from("transactions").select("id, user_id, tx_type, amount, currency, method, status, created_at, reference").order("created_at", { ascending: false }).limit(200),
       supabase.from("kyc_documents").select("id, user_id, doc_type, status, storage_path, uploaded_at, notes").order("uploaded_at", { ascending: false }),
       supabase.from("user_roles").select("id, user_id, role"),
+      supabase.from("loans").select("*").order("created_at", { ascending: false }),
     ]);
     setProfiles((p.data || []) as Profile[]);
     setWallets((w.data || []).map(x => ({ ...x, balance: Number(x.balance) })) as WalletRow[]);
     setTxs((t.data || []).map(x => ({ ...x, amount: Number(x.amount) })) as Tx[]);
     setKyc((k.data || []) as Kyc[]);
     setAllRoles((r.data || []) as RoleRow[]);
+    setLoans((l.data || []).map(x => ({ ...x, principal: Number(x.principal), monthly_payment: Number(x.monthly_payment) })) as Loan[]);
   }, []);
 
   useEffect(() => { load(); }, [load]);
