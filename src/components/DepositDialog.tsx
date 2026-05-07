@@ -31,7 +31,7 @@ interface Props {
 const labels: Record<string, string> = {
   savings: "Main Savings",
   shares: "Share Capital",
-  benevolent: "Benevolent Fund",
+  benevolent: "Charitable Fund",
 };
 
 export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: Props) {

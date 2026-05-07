@@ -14,7 +14,7 @@ type TxRow = { id: string; tx_type: string; amount: number; currency: string; me
 const walletMeta = {
   savings: { label: "Main Savings", icon: PiggyBank, tone: "primary" as const },
   shares: { label: "Share Capital", icon: Wallet, tone: "gold" as const },
-  benevolent: { label: "Benevolent Fund", icon: HeartHandshake, tone: "muted" as const },
+  benevolent: { label: "Charitable Fund", icon: HeartHandshake, tone: "muted" as const },
 };
 
 export default function Dashboard() {
