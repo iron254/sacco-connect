@@ -3,7 +3,8 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield } from "lucide-react";
+import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield, ChevronDown } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -103,9 +104,38 @@ export default function AppLayout() {
                 <div className="text-sm font-medium">{profile?.member_number || "—"}</div>
                 <div className="text-xs text-muted-foreground">Member no.</div>
               </div>
-              <Avatar className="h-10 w-10 border border-border">
-                <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{initials}</AvatarFallback>
-              </Avatar>
+              <DropdownMenu>
+                <DropdownMenuTrigger className="flex items-center gap-1 rounded-full focus:outline-none focus:ring-2 focus:ring-ring">
+                  <Avatar className="h-10 w-10 border border-border">
+                    <AvatarFallback className="bg-primary text-primary-foreground text-sm font-semibold">{initials}</AvatarFallback>
+                  </Avatar>
+                  <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56">
+                  <DropdownMenuLabel>
+                    <div className="text-sm font-medium">{profile?.full_name || "Member"}</div>
+                    <div className="text-xs font-normal text-muted-foreground">{user?.email}</div>
+                  </DropdownMenuLabel>
+                  <DropdownMenuSeparator />
+                  {isAdmin && (
+                    <DropdownMenuItem onClick={() => navigate("/admin")}>
+                      <Shield className="mr-2 h-4 w-4" /> Admin
+                    </DropdownMenuItem>
+                  )}
+                  {!isAdmin && (
+                    <DropdownMenuItem onClick={claimAdmin}>
+                      <Shield className="mr-2 h-4 w-4" /> Claim admin (first user)
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem onClick={() => navigate("/settings")}>
+                    <Settings className="mr-2 h-4 w-4" /> Settings
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={async () => { await signOut(); navigate("/"); }}>
+                    <LogOut className="mr-2 h-4 w-4" /> Sign out
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </header>
