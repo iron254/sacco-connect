@@ -11,6 +11,7 @@ import Onboarding from "./pages/Onboarding";
 import AppLayout from "./components/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import Loans from "./pages/Loans";
+import Settings from "./pages/Settings";
 import Admin from "./pages/Admin";
 import { AdminRoute } from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
@@ -31,6 +32,7 @@ const App = () => (
             <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/loans" element={<Loans />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
             </Route>
             <Route path="*" element={<NotFound />} />
