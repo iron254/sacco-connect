@@ -383,6 +383,10 @@ export default function Admin() {
             </div>
           </Card>
         </TabsContent>
+
+        <TabsContent value="reports">
+          <ReportsPanel profiles={profiles} wallets={wallets} txs={txs} loans={loans as any} />
+        </TabsContent>
       </Tabs>
     </div>
   );
