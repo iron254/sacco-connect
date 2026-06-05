@@ -152,6 +152,7 @@ export default function Admin() {
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
+          <TabsTrigger value="reports"><FileText className="mr-1 h-3.5 w-3.5" /> Reports</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members">
