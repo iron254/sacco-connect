@@ -5,11 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles, ArrowDownLeft } from "lucide-react";
+import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles, ArrowDownLeft, Download } from "lucide-react";
 import { DepositDialog } from "@/components/DepositDialog";
+import { downloadReceipt } from "@/lib/reports";
 
 type WalletRow = { id: string; wallet_type: "savings" | "shares" | "benevolent"; currency: string; balance: number };
-type TxRow = { id: string; tx_type: string; amount: number; currency: string; method: string; description: string | null; created_at: string; wallet_id: string };
+type TxRow = { id: string; tx_type: string; amount: number; currency: string; method: string; description: string | null; created_at: string; wallet_id: string; reference: string | null; status: string };
 
 const walletMeta = {
   savings: { label: "Main Savings", icon: PiggyBank, tone: "primary" as const },
@@ -30,7 +31,7 @@ export default function Dashboard() {
       supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
       supabase.from("next_of_kin").select("id", { count: "exact", head: true }).eq("user_id", user.id),
       supabase.from("wallets").select("id, wallet_type, currency, balance").eq("user_id", user.id),
-      supabase.from("transactions").select("id, tx_type, amount, currency, method, description, created_at, wallet_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+      supabase.from("transactions").select("id, tx_type, amount, currency, method, description, created_at, wallet_id, reference, status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
     ]);
     setProfile(prof);
     setNokCount(count || 0);
@@ -153,7 +154,7 @@ export default function Dashboard() {
                 const w = wallets.find(x => x.id === t.wallet_id);
                 const isCredit = ["deposit", "transfer_in", "interest"].includes(t.tx_type);
                 return (
-                  <li key={t.id} className="flex items-center justify-between py-3">
+                  <li key={t.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isCredit ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
                         <ArrowDownLeft className={`h-4 w-4 ${isCredit ? "" : "rotate-180"}`} />
@@ -165,9 +166,23 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <p className={`font-display text-sm font-semibold tabular-nums ${isCredit ? "text-success" : "text-destructive"}`}>
-                      {isCredit ? "+" : "−"} {t.currency} {fmt(Number(t.amount))}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className={`font-display text-sm font-semibold tabular-nums ${isCredit ? "text-success" : "text-destructive"}`}>
+                        {isCredit ? "+" : "−"} {t.currency} {fmt(Number(t.amount))}
+                      </p>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Download receipt"
+                        onClick={() => downloadReceipt({
+                          tx: t,
+                          member: { full_name: profile?.full_name, member_number: profile?.member_number, email: user?.email },
+                          walletLabel: w ? walletMeta[w.wallet_type].label : undefined,
+                        })}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 );
               })}

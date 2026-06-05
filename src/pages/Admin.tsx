@@ -10,7 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2, HandCoins } from "lucide-react";
+import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2, HandCoins, FileText } from "lucide-react";
+import { ReportsPanel } from "@/components/ReportsPanel";
 
 type Profile = { id: string; full_name: string | null; member_number: string | null; phone: string | null; kyc_status: string; created_at: string };
 type WalletRow = { id: string; user_id: string; wallet_type: string; currency: string; balance: number };
@@ -151,6 +152,7 @@ export default function Admin() {
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
+          <TabsTrigger value="reports"><FileText className="mr-1 h-3.5 w-3.5" /> Reports</TabsTrigger>
         </TabsList>
 
         <TabsContent value="members">
@@ -380,6 +382,10 @@ export default function Admin() {
               </table>
             </div>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="reports">
+          <ReportsPanel profiles={profiles} wallets={wallets} txs={txs} loans={loans as any} />
         </TabsContent>
       </Tabs>
     </div>
