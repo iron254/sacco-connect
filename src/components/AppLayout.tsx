@@ -50,14 +50,21 @@ export default function AppLayout() {
         </div>
         <nav className="flex-1 space-y-1 p-4">
           {nav.map(({ to, icon: Icon, label, soon }) => (
-            <NavLink key={to} to={to} end className={({ isActive }) => cn(
-              "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-base",
-              isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
-            )}>
-              <Icon className="h-4 w-4" />
-              <span className="flex-1">{label}</span>
-              {soon && <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-sidebar-foreground/60">Soon</span>}
-            </NavLink>
+            soon ? (
+              <div key={to} aria-disabled="true" className="flex cursor-not-allowed items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium text-sidebar-foreground/40">
+                <Icon className="h-4 w-4" />
+                <span className="flex-1">{label}</span>
+                <span className="rounded bg-sidebar-accent px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-sidebar-foreground/60">Soon</span>
+              </div>
+            ) : (
+              <NavLink key={to} to={to} end className={({ isActive }) => cn(
+                "flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-base",
+                isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground"
+              )}>
+                <Icon className="h-4 w-4" />
+                <span className="flex-1">{label}</span>
+              </NavLink>
+            )
           ))}
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => cn(
