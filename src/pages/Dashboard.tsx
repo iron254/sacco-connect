@@ -154,7 +154,7 @@ export default function Dashboard() {
                 const w = wallets.find(x => x.id === t.wallet_id);
                 const isCredit = ["deposit", "transfer_in", "interest"].includes(t.tx_type);
                 return (
-                  <li key={t.id} className="flex items-center justify-between py-3">
+                  <li key={t.id} className="flex items-center justify-between gap-3 py-3">
                     <div className="flex items-center gap-3">
                       <div className={`flex h-9 w-9 items-center justify-center rounded-full ${isCredit ? "bg-success/10 text-success" : "bg-destructive/10 text-destructive"}`}>
                         <ArrowDownLeft className={`h-4 w-4 ${isCredit ? "" : "rotate-180"}`} />
@@ -166,9 +166,23 @@ export default function Dashboard() {
                         </p>
                       </div>
                     </div>
-                    <p className={`font-display text-sm font-semibold tabular-nums ${isCredit ? "text-success" : "text-destructive"}`}>
-                      {isCredit ? "+" : "−"} {t.currency} {fmt(Number(t.amount))}
-                    </p>
+                    <div className="flex items-center gap-3">
+                      <p className={`font-display text-sm font-semibold tabular-nums ${isCredit ? "text-success" : "text-destructive"}`}>
+                        {isCredit ? "+" : "−"} {t.currency} {fmt(Number(t.amount))}
+                      </p>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        title="Download receipt"
+                        onClick={() => downloadReceipt({
+                          tx: t,
+                          member: { full_name: profile?.full_name, member_number: profile?.member_number, email: user?.email },
+                          walletLabel: w ? walletMeta[w.wallet_type].label : undefined,
+                        })}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </li>
                 );
               })}
