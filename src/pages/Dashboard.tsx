@@ -31,7 +31,7 @@ export default function Dashboard() {
       supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
       supabase.from("next_of_kin").select("id", { count: "exact", head: true }).eq("user_id", user.id),
       supabase.from("wallets").select("id, wallet_type, currency, balance").eq("user_id", user.id),
-      supabase.from("transactions").select("id, tx_type, amount, currency, method, description, created_at, wallet_id").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
+      supabase.from("transactions").select("id, tx_type, amount, currency, method, description, created_at, wallet_id, reference, status").eq("user_id", user.id).order("created_at", { ascending: false }).limit(10),
     ]);
     setProfile(prof);
     setNokCount(count || 0);
