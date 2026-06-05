@@ -5,11 +5,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles, ArrowDownLeft } from "lucide-react";
+import { ArrowUpRight, Wallet, PiggyBank, HeartHandshake, HandCoins, ShieldAlert, Sparkles, ArrowDownLeft, Download } from "lucide-react";
 import { DepositDialog } from "@/components/DepositDialog";
+import { downloadReceipt } from "@/lib/reports";
 
 type WalletRow = { id: string; wallet_type: "savings" | "shares" | "benevolent"; currency: string; balance: number };
-type TxRow = { id: string; tx_type: string; amount: number; currency: string; method: string; description: string | null; created_at: string; wallet_id: string };
+type TxRow = { id: string; tx_type: string; amount: number; currency: string; method: string; description: string | null; created_at: string; wallet_id: string; reference: string | null; status: string };
 
 const walletMeta = {
   savings: { label: "Main Savings", icon: PiggyBank, tone: "primary" as const },
