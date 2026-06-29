@@ -2,3 +2,9 @@ project_id = "apsazonqilafyflbzjxt"
 
 [functions.mpesa-callback]
 verify_jwt = false
+
+[functions.mpesa-c2b-validation]
+verify_jwt = false
+
+[functions.mpesa-c2b-confirmation]
+verify_jwt = false
