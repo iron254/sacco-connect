@@ -1,12 +1,15 @@
-import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
-import { createClient } from "npm:@supabase/supabase-js@2";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
-// Safaricom C2B Confirmation URL
-// Called AFTER the customer has been debited successfully.
-// We always acknowledge with ResultCode "0" so Safaricom does not retry forever.
-// Handles BOTH:
-//   - Push flow (STK): if a pending transaction exists with this checkout_request_id we mark it completed.
-//   - Pull flow (Paybill/Till): no prior row exists — we insert a completed deposit using BillRefNumber as member id.
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+// deno-lint-ignore no-explicit-any
+const ER: any = (globalThis as any).EdgeRuntime;
+
+// C2B Confirmation URL — called after debit. Always ACK so Safaricom doesn't retry forever.
+// Handles STK tail (updates pending row) and Paybill pull (inserts new completed deposit).
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -18,7 +21,7 @@ Deno.serve(async (req) => {
 
   try {
     const payload = await req.json().catch(() => ({}));
-    console.log("[c2b-confirmation] payload:", JSON.stringify(payload));
+    console.log("[c2b-confirmation]", JSON.stringify(payload));
 
     const billRef: string = (payload?.BillRefNumber ?? "").toString().trim();
     const amount = Number(payload?.TransAmount ?? 0);
@@ -26,90 +29,68 @@ Deno.serve(async (req) => {
     const phone: string | undefined = payload?.MSISDN?.toString();
     const checkoutRequestId: string | undefined = payload?.CheckoutRequestID;
 
-    if (!billRef || !Number.isFinite(amount) || amount <= 0) {
-      console.warn("[c2b-confirmation] invalid payload, acking anyway");
-      return ack();
-    }
+    if (!billRef || !Number.isFinite(amount) || amount <= 0) return ack();
 
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
+    const work = async () => {
+      const admin = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // 1) If this is the tail of an STK push, just complete that transaction.
-    if (checkoutRequestId) {
-      const { data: existing } = await supabase
-        .from("transactions")
-        .select("id, status")
-        .eq("checkout_request_id", checkoutRequestId)
-        .maybeSingle();
-
-      if (existing) {
-        if (existing.status !== "completed") {
-          await supabase
-            .from("transactions")
-            .update({
-              status: "completed",
-              mpesa_receipt: mpesaReceipt ?? null,
-              completed_at: new Date().toISOString(),
-            })
-            .eq("id", existing.id);
+      // 1) STK tail — mark existing pending row complete.
+      if (checkoutRequestId) {
+        const { data: existing } = await admin
+          .from("transactions")
+          .select("id, status")
+          .eq("checkout_request_id", checkoutRequestId)
+          .maybeSingle();
+        if (existing) {
+          if (existing.status !== "completed") {
+            await admin
+              .from("transactions")
+              .update({ status: "completed", reference: mpesaReceipt ?? checkoutRequestId })
+              .eq("id", existing.id);
+          }
+          return;
         }
-        return ack();
       }
-    }
 
-    // 2) Pull flow: resolve member by BillRefNumber (their member_number).
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("member_number", billRef)
-      .maybeSingle();
-
-    if (!profile) {
-      console.warn("[c2b-confirmation] unknown member_number:", billRef);
-      return ack();
-    }
-
-    const { data: wallet } = await supabase
-      .from("wallets")
-      .select("id")
-      .eq("user_id", profile.id)
-      .eq("wallet_type", "savings")
-      .maybeSingle();
-
-    if (!wallet) {
-      console.warn("[c2b-confirmation] no savings wallet for user:", profile.id);
-      return ack();
-    }
-
-    // Idempotency on TransID.
-    if (mpesaReceipt) {
-      const { data: dup } = await supabase
-        .from("transactions")
+      // 2) Paybill pull — resolve member and insert completed deposit.
+      const { data: profile } = await admin
+        .from("profiles")
         .select("id")
-        .eq("mpesa_receipt", mpesaReceipt)
+        .eq("member_number", billRef)
         .maybeSingle();
-      if (dup) return ack();
-    }
+      if (!profile) return;
 
-    await supabase.from("transactions").insert({
-      user_id: profile.id,
-      wallet_id: wallet.id,
-      transaction_type: "deposit",
-      payment_method: "mpesa",
-      amount,
-      status: "completed",
-      phone_number: phone ?? null,
-      mpesa_receipt: mpesaReceipt ?? null,
-      completed_at: new Date().toISOString(),
-      description: "M-Pesa Paybill deposit",
-    });
+      const { data: wallet } = await admin
+        .from("wallets")
+        .select("id")
+        .eq("user_id", profile.id)
+        .eq("wallet_type", "savings")
+        .maybeSingle();
+      if (!wallet) return;
+
+      // Idempotency: unique index on (reference) where method='mpesa' protects us.
+      const { error } = await admin.from("transactions").insert({
+        user_id: profile.id,
+        wallet_id: wallet.id,
+        tx_type: "deposit",
+        amount,
+        currency: "KES",
+        status: "completed",
+        method: "mpesa",
+        reference: mpesaReceipt ?? null,
+        description: `M-Pesa Paybill deposit${phone ? ` from ${phone}` : ""}`,
+      });
+      if (error && !String(error.message).includes("duplicate")) {
+        console.error("c2b insert failed", error);
+      }
+    };
+
+    if (ER?.waitUntil) ER.waitUntil(work());
+    else await work();
 
     return ack();
   } catch (e) {
     console.error("[c2b-confirmation] error:", e);
-    // Always ack so Safaricom does not retry indefinitely.
     return ack();
   }
 });
