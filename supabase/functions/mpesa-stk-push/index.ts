@@ -26,6 +26,21 @@ function timestamp(): string {
   return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 }
 
+// In-memory OAuth token cache (per isolate). Daraja tokens last ~1h.
+let cachedToken: { token: string; expiresAt: number } | null = null;
+async function getAccessToken(baseUrl: string, key: string, secret: string): Promise<string> {
+  const now = Date.now();
+  if (cachedToken && cachedToken.expiresAt > now + 60_000) return cachedToken.token;
+  const res = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
+    headers: { Authorization: "Basic " + btoa(`${key}:${secret}`) },
+  });
+  const json = await res.json();
+  if (!res.ok || !json.access_token) throw new Error("M-Pesa auth failed");
+  const ttlMs = (Number(json.expires_in ?? 3599) - 60) * 1000;
+  cachedToken = { token: json.access_token, expiresAt: now + ttlMs };
+  return json.access_token;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -55,19 +70,16 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceKey);
 
-    // Verify wallet belongs to user
     const { data: wallet, error: wErr } = await admin.from("wallets").select("id, user_id").eq("id", wallet_id).maybeSingle();
     if (wErr || !wallet || wallet.user_id !== user.id) {
       return new Response(JSON.stringify({ error: "Wallet not found" }), { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // OAuth token
-    const tokenRes = await fetch(`${baseUrl}/oauth/v1/generate?grant_type=client_credentials`, {
-      headers: { Authorization: "Basic " + btoa(`${consumerKey}:${consumerSecret}`) },
-    });
-    const tokenJson = await tokenRes.json();
-    if (!tokenRes.ok || !tokenJson.access_token) {
-      console.error("OAuth failed", tokenJson);
+    let accessToken: string;
+    try {
+      accessToken = await getAccessToken(baseUrl, consumerKey, consumerSecret);
+    } catch (e) {
+      console.error("OAuth failed", e);
       return new Response(JSON.stringify({ error: "M-Pesa auth failed" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
@@ -78,7 +90,7 @@ Deno.serve(async (req) => {
 
     const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
-      headers: { Authorization: `Bearer ${tokenJson.access_token}`, "Content-Type": "application/json" },
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         BusinessShortCode: shortcode,
         Password: password,
@@ -96,10 +108,11 @@ Deno.serve(async (req) => {
     const stkJson = await stkRes.json();
     if (!stkRes.ok || stkJson.ResponseCode !== "0") {
       console.error("STK push failed", stkJson);
+      // If token was rejected, invalidate cache so next call refetches.
+      if (stkRes.status === 401) cachedToken = null;
       return new Response(JSON.stringify({ error: stkJson.errorMessage || stkJson.ResponseDescription || "STK push failed" }), { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } });
     }
 
-    // Insert pending tx
     const { error: txErr } = await admin.from("transactions").insert({
       user_id: user.id,
       wallet_id,
