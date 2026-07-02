@@ -294,6 +294,17 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      admin_report_summary: {
+        Args: { _from: string; _to: string }
+        Returns: Json
+      }
+      admin_wallet_totals: {
+        Args: never
+        Returns: {
+          total: number
+          wallet_type: string
+        }[]
+      }
       claim_admin_if_none: { Args: never; Returns: boolean }
       has_role: {
         Args: {
