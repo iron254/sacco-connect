@@ -203,7 +203,7 @@ function KycTab({ onChange }: { onChange: () => void }) {
     (async () => {
       setLoading(true);
       let q = supabase.from("kyc_documents").select("id, user_id, doc_type, status, storage_path, uploaded_at, notes", { count: "exact" });
-      if (statusF !== "all") q = q.eq("status", statusF);
+      if (statusF !== "all") q = q.eq("status", statusF as any);
       const from = (page - 1) * PAGE;
       const { data, count } = await q.order("uploaded_at", { ascending: false }).range(from, from + PAGE - 1);
       if (cancelled) return;
@@ -283,7 +283,7 @@ function LoansTab({ onChange }: { onChange: () => void }) {
     (async () => {
       setLoading(true);
       let q = supabase.from("loans").select("*", { count: "exact" });
-      if (statusF !== "all") q = q.eq("status", statusF);
+      if (statusF !== "all") q = q.eq("status", statusF as any);
       const from = (page - 1) * PAGE;
       const { data, count } = await q.order("created_at", { ascending: false }).range(from, from + PAGE - 1);
       if (cancelled) return;
@@ -402,7 +402,7 @@ function TransactionsTab() {
     (async () => {
       setLoading(true);
       let q = supabase.from("transactions").select("id, user_id, tx_type, amount, currency, method, status, created_at, reference", { count: "exact" });
-      if (statusF !== "all") q = q.eq("status", statusF);
+      if (statusF !== "all") q = q.eq("status", statusF as any);
       const from = (page - 1) * PAGE;
       const { data, count } = await q.order("created_at", { ascending: false }).range(from, from + PAGE - 1);
       if (cancelled) return;
