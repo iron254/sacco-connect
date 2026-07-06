@@ -8,10 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2, HandCoins, FileText, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ReportsPanel } from "@/components/ReportsPanel";
+
+type BulkConfirm = { title: string; description: string; confirmLabel: string; destructive?: boolean; onConfirm: () => Promise<void> } | null;
+
+function useBulkSelection<T extends { id: string }>(rows: T[]) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => { setSelected(new Set()); }, [rows]);
+  const toggle = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = rows.length > 0 && rows.every(r => selected.has(r.id));
+  const someChecked = rows.some(r => selected.has(r.id)) && !allChecked;
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(rows.map(r => r.id)));
+  const clear = () => setSelected(new Set());
+  return { selected, toggle, toggleAll, allChecked, someChecked, clear };
+}
 
 type Profile = { id: string; full_name: string | null; member_number: string | null; phone: string | null; kyc_status: string; created_at: string };
 type WalletRow = { id: string; user_id: string; wallet_type: string; currency: string; balance: number };
