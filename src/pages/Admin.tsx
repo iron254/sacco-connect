@@ -249,7 +249,7 @@ function KycTab({ onChange }: { onChange: () => void }) {
     const ids = Array.from(selected);
     const { error } = await supabase.from("kyc_documents").update({ status }).in("id", ids);
     setBusy(false);
-    if (error) return toast({ title: "Bulk update failed", description: error.message, variant: "destructive" });
+    if (error) { toast({ title: "Bulk update failed", description: error.message, variant: "destructive" }); return; }
     toast({ title: `${ids.length} document(s) ${status}` });
     clear(); setConfirm(null); setTick(t => t + 1); onChange();
   };
