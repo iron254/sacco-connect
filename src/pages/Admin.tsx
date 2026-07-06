@@ -353,6 +353,11 @@ function LoansTab({ onChange }: { onChange: () => void }) {
   const [tick, setTick] = useState(0);
   const [rejectFor, setRejectFor] = useState<Loan | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bulkReject, setBulkReject] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState("");
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -388,10 +393,37 @@ function LoansTab({ onChange }: { onChange: () => void }) {
     setTick(t => t + 1); onChange();
   };
 
+  // Only pending loans in current page are eligible for bulk approve/reject
+  const eligibleIds = rows.filter(l => l.status === "pending" && selected.has(l.id)).map(l => l.id);
+
+  const bulkApprove = async () => {
+    setBusy(true);
+    const { error } = await supabase.from("loans").update({ status: "approved", approved_at: new Date().toISOString() }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk approve failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} loan(s) approved` });
+    clear(); setConfirm(null); setTick(t => t + 1); onChange();
+  };
+  const askBulkApprove = () => setConfirm({
+    title: "Approve selected loans?",
+    description: `This will approve ${eligibleIds.length} pending loan application(s). Non-pending selections are ignored.`,
+    confirmLabel: "Approve all",
+    onConfirm: bulkApprove,
+  });
+  const submitBulkReject = async () => {
+    if (!bulkRejectReason.trim()) return toast({ title: "Reason required", variant: "destructive" });
+    setBusy(true);
+    const { error } = await supabase.from("loans").update({ status: "rejected", rejection_reason: bulkRejectReason.trim() }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk reject failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} loan(s) rejected` });
+    clear(); setBulkReject(false); setBulkRejectReason(""); setTick(t => t + 1); onChange();
+  };
+
   return (
     <>
       <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <Select value={statusF} onValueChange={setStatusF}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -403,18 +435,30 @@ function LoansTab({ onChange }: { onChange: () => void }) {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+          {eligibleIds.length > 0 && (
+            <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+              <span className="text-muted-foreground">{eligibleIds.length} pending selected</span>
+              <Button size="sm" onClick={askBulkApprove}>Approve</Button>
+              <Button size="sm" variant="destructive" onClick={() => { setBulkRejectReason(""); setBulkReject(true); }}>Reject</Button>
+              <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="py-2">Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th></tr>
+              <tr>
+                <th className="w-8 py-2"><Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} /></th>
+                <th>Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th>
+              </tr>
             </thead>
             <tbody>
               {rows.map(l => {
                 const m = memberMap.get(l.user_id);
                 return (
                   <tr key={l.id} className="border-t border-border align-top">
-                    <td className="py-3 text-xs text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</td>
+                    <td className="py-3"><Checkbox checked={selected.has(l.id)} onCheckedChange={() => toggle(l.id)} disabled={l.status !== "pending"} /></td>
+                    <td className="text-xs text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</td>
                     <td>{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
@@ -438,6 +482,26 @@ function LoansTab({ onChange }: { onChange: () => void }) {
         </div>
         <Pager page={page} setPage={setPage} total={total} loading={loading} />
       </Card>
+
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
+
+      <Dialog open={bulkReject} onOpenChange={(o) => { if (!o) { setBulkReject(false); setBulkRejectReason(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reject {eligibleIds.length} loan(s)</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">This reason will be recorded on every selected loan.</p>
+            <div>
+              <Label htmlFor="bulk-reason">Reason for rejection</Label>
+              <Textarea id="bulk-reason" value={bulkRejectReason} onChange={e => setBulkRejectReason(e.target.value)} placeholder="Explain why these loans are being rejected…" rows={4} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReject(false)} disabled={busy}>Cancel</Button>
+            <Button variant="destructive" onClick={submitBulkReject} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm bulk rejection"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={!!rejectFor} onOpenChange={(o) => { if (!o) { setRejectFor(null); setRejectReason(""); } }}>
         <DialogContent>
