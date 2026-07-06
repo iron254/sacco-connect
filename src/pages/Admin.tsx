@@ -8,10 +8,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Users, Wallet, ArrowLeftRight, ShieldCheck, FileCheck2, HandCoins, FileText, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
 import { ReportsPanel } from "@/components/ReportsPanel";
+
+type BulkConfirm = { title: string; description: string; confirmLabel: string; destructive?: boolean; onConfirm: () => Promise<void> } | null;
+
+function useBulkSelection<T extends { id: string }>(rows: T[]) {
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  useEffect(() => { setSelected(new Set()); }, [rows]);
+  const toggle = (id: string) => setSelected(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allChecked = rows.length > 0 && rows.every(r => selected.has(r.id));
+  const someChecked = rows.some(r => selected.has(r.id)) && !allChecked;
+  const toggleAll = () => setSelected(allChecked ? new Set() : new Set(rows.map(r => r.id)));
+  const clear = () => setSelected(new Set());
+  return { selected, toggle, toggleAll, allChecked, someChecked, clear };
+}
 
 type Profile = { id: string; full_name: string | null; member_number: string | null; phone: string | null; kyc_status: string; created_at: string };
 type WalletRow = { id: string; user_id: string; wallet_type: string; currency: string; balance: number };
@@ -196,6 +211,9 @@ function KycTab({ onChange }: { onChange: () => void }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -226,9 +244,27 @@ function KycTab({ onChange }: { onChange: () => void }) {
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
 
+  const bulkUpdate = async (status: "verified" | "rejected") => {
+    setBusy(true);
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("kyc_documents").update({ status }).in("id", ids);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk update failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${ids.length} document(s) ${status}` });
+    clear(); setConfirm(null); setTick(t => t + 1); onChange();
+  };
+
+  const askBulk = (status: "verified" | "rejected") => setConfirm({
+    title: status === "verified" ? "Verify selected documents?" : "Reject selected documents?",
+    description: `This will mark ${selected.size} KYC document(s) as ${status}. This action can be reversed by changing status again.`,
+    confirmLabel: status === "verified" ? "Verify all" : "Reject all",
+    destructive: status === "rejected",
+    onConfirm: () => bulkUpdate(status),
+  });
+
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select value={statusF} onValueChange={setStatusF}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -239,15 +275,32 @@ function KycTab({ onChange }: { onChange: () => void }) {
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
+        {selected.size > 0 && (
+          <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">{selected.size} selected</span>
+            <Button size="sm" onClick={() => askBulk("verified")}>Verify</Button>
+            <Button size="sm" variant="destructive" onClick={() => askBulk("rejected")}>Reject</Button>
+            <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+          </div>
+        )}
       </div>
+      {rows.length > 0 && (
+        <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} />
+          Select all on page
+        </label>
+      )}
       <div className="space-y-3">
         {rows.map(k => {
           const m = memberMap.get(k.user_id);
           return (
             <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
-              <div>
-                <div className="font-medium">{m?.full_name || "Unknown"} <span className="text-xs text-muted-foreground">· {m?.member_number}</span></div>
-                <div className="text-xs text-muted-foreground">{k.doc_type} · uploaded {new Date(k.uploaded_at).toLocaleString()}</div>
+              <div className="flex items-center gap-3">
+                <Checkbox checked={selected.has(k.id)} onCheckedChange={() => toggle(k.id)} />
+                <div>
+                  <div className="font-medium">{m?.full_name || "Unknown"} <span className="text-xs text-muted-foreground">· {m?.member_number}</span></div>
+                  <div className="text-xs text-muted-foreground">{k.doc_type} · uploaded {new Date(k.uploaded_at).toLocaleString()}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={k.status === "verified" ? "default" : k.status === "rejected" ? "destructive" : "secondary"}>{k.status}</Badge>
@@ -261,7 +314,31 @@ function KycTab({ onChange }: { onChange: () => void }) {
         {!loading && rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No documents</p>}
       </div>
       <Pager page={page} setPage={setPage} total={total} loading={loading} />
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
     </Card>
+  );
+}
+
+function ConfirmBulkDialog({ confirm, busy, onClose }: { confirm: BulkConfirm; busy: boolean; onClose: () => void }) {
+  return (
+    <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+          <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={(e) => { e.preventDefault(); confirm?.onConfirm(); }}
+            className={confirm?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : confirm?.confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
@@ -276,6 +353,11 @@ function LoansTab({ onChange }: { onChange: () => void }) {
   const [tick, setTick] = useState(0);
   const [rejectFor, setRejectFor] = useState<Loan | null>(null);
   const [rejectReason, setRejectReason] = useState("");
+  const [bulkReject, setBulkReject] = useState(false);
+  const [bulkRejectReason, setBulkRejectReason] = useState("");
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -311,10 +393,37 @@ function LoansTab({ onChange }: { onChange: () => void }) {
     setTick(t => t + 1); onChange();
   };
 
+  // Only pending loans in current page are eligible for bulk approve/reject
+  const eligibleIds = rows.filter(l => l.status === "pending" && selected.has(l.id)).map(l => l.id);
+
+  const bulkApprove = async () => {
+    setBusy(true);
+    const { error } = await supabase.from("loans").update({ status: "approved", approved_at: new Date().toISOString() }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk approve failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} loan(s) approved` });
+    clear(); setConfirm(null); setTick(t => t + 1); onChange();
+  };
+  const askBulkApprove = () => setConfirm({
+    title: "Approve selected loans?",
+    description: `This will approve ${eligibleIds.length} pending loan application(s). Non-pending selections are ignored.`,
+    confirmLabel: "Approve all",
+    onConfirm: bulkApprove,
+  });
+  const submitBulkReject = async () => {
+    if (!bulkRejectReason.trim()) return toast({ title: "Reason required", variant: "destructive" });
+    setBusy(true);
+    const { error } = await supabase.from("loans").update({ status: "rejected", rejection_reason: bulkRejectReason.trim() }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk reject failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} loan(s) rejected` });
+    clear(); setBulkReject(false); setBulkRejectReason(""); setTick(t => t + 1); onChange();
+  };
+
   return (
     <>
       <Card className="p-5">
-        <div className="mb-4 flex items-center gap-3">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
           <Select value={statusF} onValueChange={setStatusF}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -326,18 +435,30 @@ function LoansTab({ onChange }: { onChange: () => void }) {
               <SelectItem value="closed">Closed</SelectItem>
             </SelectContent>
           </Select>
+          {eligibleIds.length > 0 && (
+            <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+              <span className="text-muted-foreground">{eligibleIds.length} pending selected</span>
+              <Button size="sm" onClick={askBulkApprove}>Approve</Button>
+              <Button size="sm" variant="destructive" onClick={() => { setBulkRejectReason(""); setBulkReject(true); }}>Reject</Button>
+              <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+            </div>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-left text-xs uppercase text-muted-foreground">
-              <tr><th className="py-2">Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th></tr>
+              <tr>
+                <th className="w-8 py-2"><Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} /></th>
+                <th>Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th>
+              </tr>
             </thead>
             <tbody>
               {rows.map(l => {
                 const m = memberMap.get(l.user_id);
                 return (
                   <tr key={l.id} className="border-t border-border align-top">
-                    <td className="py-3 text-xs text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</td>
+                    <td className="py-3"><Checkbox checked={selected.has(l.id)} onCheckedChange={() => toggle(l.id)} disabled={l.status !== "pending"} /></td>
+                    <td className="text-xs text-muted-foreground">{new Date(l.created_at).toLocaleDateString()}</td>
                     <td>{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
@@ -361,6 +482,26 @@ function LoansTab({ onChange }: { onChange: () => void }) {
         </div>
         <Pager page={page} setPage={setPage} total={total} loading={loading} />
       </Card>
+
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
+
+      <Dialog open={bulkReject} onOpenChange={(o) => { if (!o) { setBulkReject(false); setBulkRejectReason(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Reject {eligibleIds.length} loan(s)</DialogTitle></DialogHeader>
+          <div className="space-y-3 text-sm">
+            <p className="text-muted-foreground">This reason will be recorded on every selected loan.</p>
+            <div>
+              <Label htmlFor="bulk-reason">Reason for rejection</Label>
+              <Textarea id="bulk-reason" value={bulkRejectReason} onChange={e => setBulkRejectReason(e.target.value)} placeholder="Explain why these loans are being rejected…" rows={4} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkReject(false)} disabled={busy}>Cancel</Button>
+            <Button variant="destructive" onClick={submitBulkReject} disabled={busy}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm bulk rejection"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
 
       <Dialog open={!!rejectFor} onOpenChange={(o) => { if (!o) { setRejectFor(null); setRejectReason(""); } }}>
         <DialogContent>
@@ -395,6 +536,10 @@ function TransactionsTab() {
   const [memberMap, setMemberMap] = useState<Map<string, Profile>>(new Map());
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -412,11 +557,30 @@ function TransactionsTab() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [statusF, page]);
+  }, [statusF, page, tick]);
+
+  const eligibleIds = rows.filter(t => t.status === "pending" && selected.has(t.id)).map(t => t.id);
+  const bulkUpdate = async (status: "completed" | "failed") => {
+    setBusy(true);
+    const { error } = await supabase.from("transactions").update({ status }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk update failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} transaction(s) ${status === "completed" ? "approved" : "marked failed"}` });
+    clear(); setConfirm(null); setTick(t => t + 1);
+  };
+  const askBulk = (status: "completed" | "failed") => setConfirm({
+    title: status === "completed" ? "Approve selected transactions?" : "Mark selected as failed?",
+    description: status === "completed"
+      ? `This will mark ${eligibleIds.length} pending transaction(s) as completed. Wallet balances will be updated automatically.`
+      : `This will mark ${eligibleIds.length} pending transaction(s) as failed. No wallet changes will be applied.`,
+    confirmLabel: status === "completed" ? "Approve all" : "Mark failed",
+    destructive: status === "failed",
+    onConfirm: () => bulkUpdate(status),
+  });
 
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select value={statusF} onValueChange={setStatusF}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -427,18 +591,30 @@ function TransactionsTab() {
             <SelectItem value="reversed">Reversed</SelectItem>
           </SelectContent>
         </Select>
+        {eligibleIds.length > 0 && (
+          <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">{eligibleIds.length} pending selected</span>
+            <Button size="sm" onClick={() => askBulk("completed")}>Approve</Button>
+            <Button size="sm" variant="destructive" onClick={() => askBulk("failed")}>Mark failed</Button>
+            <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="py-2">When</th><th>Member</th><th>Type</th><th>Method</th><th>Amount</th><th>Status</th></tr>
+            <tr>
+              <th className="w-8 py-2"><Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} /></th>
+              <th>When</th><th>Member</th><th>Type</th><th>Method</th><th>Amount</th><th>Status</th>
+            </tr>
           </thead>
           <tbody>
             {rows.map(t => {
               const m = memberMap.get(t.user_id);
               return (
                 <tr key={t.id} className="border-t border-border">
-                  <td className="py-2.5 text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</td>
+                  <td className="py-2.5"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} disabled={t.status !== "pending"} /></td>
+                  <td className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</td>
                   <td>{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
                   <td className="capitalize">{t.tx_type.replace("_", " ")}</td>
                   <td className="capitalize">{t.method.replace("_", " ")}</td>
@@ -452,6 +628,7 @@ function TransactionsTab() {
         {!loading && rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No transactions</p>}
       </div>
       <Pager page={page} setPage={setPage} total={total} loading={loading} />
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
     </Card>
   );
 }
