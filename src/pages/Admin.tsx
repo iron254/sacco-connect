@@ -536,6 +536,10 @@ function TransactionsTab() {
   const [memberMap, setMemberMap] = useState<Map<string, Profile>>(new Map());
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -553,11 +557,30 @@ function TransactionsTab() {
       setLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [statusF, page]);
+  }, [statusF, page, tick]);
+
+  const eligibleIds = rows.filter(t => t.status === "pending" && selected.has(t.id)).map(t => t.id);
+  const bulkUpdate = async (status: "completed" | "failed") => {
+    setBusy(true);
+    const { error } = await supabase.from("transactions").update({ status }).in("id", eligibleIds);
+    setBusy(false);
+    if (error) { toast({ title: "Bulk update failed", description: error.message, variant: "destructive" }); return; }
+    toast({ title: `${eligibleIds.length} transaction(s) ${status === "completed" ? "approved" : "marked failed"}` });
+    clear(); setConfirm(null); setTick(t => t + 1);
+  };
+  const askBulk = (status: "completed" | "failed") => setConfirm({
+    title: status === "completed" ? "Approve selected transactions?" : "Mark selected as failed?",
+    description: status === "completed"
+      ? `This will mark ${eligibleIds.length} pending transaction(s) as completed. Wallet balances will be updated automatically.`
+      : `This will mark ${eligibleIds.length} pending transaction(s) as failed. No wallet changes will be applied.`,
+    confirmLabel: status === "completed" ? "Approve all" : "Mark failed",
+    destructive: status === "failed",
+    onConfirm: () => bulkUpdate(status),
+  });
 
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select value={statusF} onValueChange={setStatusF}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -568,18 +591,30 @@ function TransactionsTab() {
             <SelectItem value="reversed">Reversed</SelectItem>
           </SelectContent>
         </Select>
+        {eligibleIds.length > 0 && (
+          <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">{eligibleIds.length} pending selected</span>
+            <Button size="sm" onClick={() => askBulk("completed")}>Approve</Button>
+            <Button size="sm" variant="destructive" onClick={() => askBulk("failed")}>Mark failed</Button>
+            <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+          </div>
+        )}
       </div>
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="text-left text-xs uppercase text-muted-foreground">
-            <tr><th className="py-2">When</th><th>Member</th><th>Type</th><th>Method</th><th>Amount</th><th>Status</th></tr>
+            <tr>
+              <th className="w-8 py-2"><Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} /></th>
+              <th>When</th><th>Member</th><th>Type</th><th>Method</th><th>Amount</th><th>Status</th>
+            </tr>
           </thead>
           <tbody>
             {rows.map(t => {
               const m = memberMap.get(t.user_id);
               return (
                 <tr key={t.id} className="border-t border-border">
-                  <td className="py-2.5 text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</td>
+                  <td className="py-2.5"><Checkbox checked={selected.has(t.id)} onCheckedChange={() => toggle(t.id)} disabled={t.status !== "pending"} /></td>
+                  <td className="text-xs text-muted-foreground">{new Date(t.created_at).toLocaleString()}</td>
                   <td>{m?.full_name || "—"}<div className="text-xs text-muted-foreground">{m?.member_number}</div></td>
                   <td className="capitalize">{t.tx_type.replace("_", " ")}</td>
                   <td className="capitalize">{t.method.replace("_", " ")}</td>
@@ -593,6 +628,7 @@ function TransactionsTab() {
         {!loading && rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No transactions</p>}
       </div>
       <Pager page={page} setPage={setPage} total={total} loading={loading} />
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
     </Card>
   );
 }
