@@ -211,6 +211,9 @@ function KycTab({ onChange }: { onChange: () => void }) {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
+  const [confirm, setConfirm] = useState<BulkConfirm>(null);
+  const [busy, setBusy] = useState(false);
+  const { selected, toggle, toggleAll, allChecked, someChecked, clear } = useBulkSelection(rows);
 
   useEffect(() => { setPage(1); }, [statusF]);
   useEffect(() => {
@@ -241,9 +244,27 @@ function KycTab({ onChange }: { onChange: () => void }) {
     if (data?.signedUrl) window.open(data.signedUrl, "_blank");
   };
 
+  const bulkUpdate = async (status: "verified" | "rejected") => {
+    setBusy(true);
+    const ids = Array.from(selected);
+    const { error } = await supabase.from("kyc_documents").update({ status }).in("id", ids);
+    setBusy(false);
+    if (error) return toast({ title: "Bulk update failed", description: error.message, variant: "destructive" });
+    toast({ title: `${ids.length} document(s) ${status}` });
+    clear(); setConfirm(null); setTick(t => t + 1); onChange();
+  };
+
+  const askBulk = (status: "verified" | "rejected") => setConfirm({
+    title: status === "verified" ? "Verify selected documents?" : "Reject selected documents?",
+    description: `This will mark ${selected.size} KYC document(s) as ${status}. This action can be reversed by changing status again.`,
+    confirmLabel: status === "verified" ? "Verify all" : "Reject all",
+    destructive: status === "rejected",
+    onConfirm: () => bulkUpdate(status),
+  });
+
   return (
     <Card className="p-5">
-      <div className="mb-4 flex items-center gap-3">
+      <div className="mb-4 flex flex-wrap items-center gap-3">
         <Select value={statusF} onValueChange={setStatusF}>
           <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -254,15 +275,32 @@ function KycTab({ onChange }: { onChange: () => void }) {
             <SelectItem value="rejected">Rejected</SelectItem>
           </SelectContent>
         </Select>
+        {selected.size > 0 && (
+          <div className="ml-auto flex items-center gap-2 rounded-md border border-border bg-muted/40 px-3 py-1.5 text-sm">
+            <span className="text-muted-foreground">{selected.size} selected</span>
+            <Button size="sm" onClick={() => askBulk("verified")}>Verify</Button>
+            <Button size="sm" variant="destructive" onClick={() => askBulk("rejected")}>Reject</Button>
+            <Button size="sm" variant="ghost" onClick={clear}>Clear</Button>
+          </div>
+        )}
       </div>
+      {rows.length > 0 && (
+        <label className="mb-3 flex items-center gap-2 text-xs text-muted-foreground">
+          <Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} />
+          Select all on page
+        </label>
+      )}
       <div className="space-y-3">
         {rows.map(k => {
           const m = memberMap.get(k.user_id);
           return (
             <div key={k.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md border border-border p-3">
-              <div>
-                <div className="font-medium">{m?.full_name || "Unknown"} <span className="text-xs text-muted-foreground">· {m?.member_number}</span></div>
-                <div className="text-xs text-muted-foreground">{k.doc_type} · uploaded {new Date(k.uploaded_at).toLocaleString()}</div>
+              <div className="flex items-center gap-3">
+                <Checkbox checked={selected.has(k.id)} onCheckedChange={() => toggle(k.id)} />
+                <div>
+                  <div className="font-medium">{m?.full_name || "Unknown"} <span className="text-xs text-muted-foreground">· {m?.member_number}</span></div>
+                  <div className="text-xs text-muted-foreground">{k.doc_type} · uploaded {new Date(k.uploaded_at).toLocaleString()}</div>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <Badge variant={k.status === "verified" ? "default" : k.status === "rejected" ? "destructive" : "secondary"}>{k.status}</Badge>
@@ -276,7 +314,31 @@ function KycTab({ onChange }: { onChange: () => void }) {
         {!loading && rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No documents</p>}
       </div>
       <Pager page={page} setPage={setPage} total={total} loading={loading} />
+      <ConfirmBulkDialog confirm={confirm} busy={busy} onClose={() => setConfirm(null)} />
     </Card>
+  );
+}
+
+function ConfirmBulkDialog({ confirm, busy, onClose }: { confirm: BulkConfirm; busy: boolean; onClose: () => void }) {
+  return (
+    <AlertDialog open={!!confirm} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{confirm?.title}</AlertDialogTitle>
+          <AlertDialogDescription>{confirm?.description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={busy}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={busy}
+            onClick={(e) => { e.preventDefault(); confirm?.onConfirm(); }}
+            className={confirm?.destructive ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : undefined}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : confirm?.confirmLabel}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 
