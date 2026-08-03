@@ -224,3 +224,69 @@ export const downloadFinancialReportPDF = (data: FinancialReportInput) => {
   pdfFooter(doc);
   doc.save(`financial-report-${new Date().toISOString().slice(0, 10)}.pdf`);
 };
+
+export type StatementInput = {
+  member: { full_name?: string | null; member_number?: string | null; email?: string | null };
+  rangeLabel: string;
+  wallets: { label: string; balance: number; currency: string }[];
+  transactions: {
+    created_at: string;
+    wallet: string;
+    tx_type: string;
+    method: string;
+    amount: number;
+    currency: string;
+    status: string;
+  }[];
+};
+
+export const downloadStatementPDF = (data: StatementInput) => {
+  const doc = new jsPDF();
+  pdfHeader(doc, "Member Statement", `${data.member.full_name || "Member"} · ${data.member.member_number || "—"} · ${data.rangeLabel}`);
+
+  autoTable(doc, {
+    startY: 44,
+    head: [["Wallet", "Balance"]],
+    body: data.wallets.map(w => [w.label, `${w.currency} ${fmt(w.balance)}`]),
+    theme: "grid",
+    headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+    styles: { fontSize: 10 },
+  });
+
+  const inflow = data.transactions
+    .filter(t => ["deposit", "transfer_in", "interest"].includes(t.tx_type) && t.status === "completed")
+    .reduce((s, t) => s + Number(t.amount), 0);
+  const outflow = data.transactions
+    .filter(t => ["withdrawal", "transfer_out", "fee"].includes(t.tx_type) && t.status === "completed")
+    .reduce((s, t) => s + Number(t.amount), 0);
+
+  autoTable(doc, {
+    head: [["Summary", "Amount (KES)"]],
+    body: [
+      ["Money in", fmt(inflow)],
+      ["Money out", fmt(outflow)],
+      ["Net movement", fmt(inflow - outflow)],
+    ],
+    theme: "grid",
+    headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+    styles: { fontSize: 10 },
+  });
+
+  autoTable(doc, {
+    head: [["Date", "Wallet", "Type", "Method", "Amount", "Status"]],
+    body: data.transactions.map(t => [
+      new Date(t.created_at).toLocaleString(),
+      t.wallet,
+      t.tx_type.replace(/_/g, " "),
+      t.method.replace(/_/g, " "),
+      `${t.currency} ${fmt(Number(t.amount))}`,
+      t.status,
+    ]),
+    theme: "striped",
+    headStyles: { fillColor: [30, 41, 59], textColor: 255 },
+    styles: { fontSize: 9 },
+  });
+
+  pdfFooter(doc);
+  doc.save(`statement-${new Date().toISOString().slice(0, 10)}.pdf`);
+};
