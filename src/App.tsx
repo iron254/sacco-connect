@@ -15,6 +15,10 @@ import NotFound from "./pages/NotFound";
 
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Loans = lazy(() => import("./pages/Loans"));
+const Wallets = lazy(() => import("./pages/Wallets"));
+const Guarantors = lazy(() => import("./pages/Guarantors"));
+const Statements = lazy(() => import("./pages/Statements"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
 
