@@ -3,12 +3,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield, ChevronDown, ArrowLeft } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/useAdmin";
+import { useNotifications } from "@/hooks/useNotifications";
 import { toast } from "sonner";
 
 const nav = [
@@ -24,6 +25,7 @@ export default function AppLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { isAdmin } = useAdmin();
+  const { unread } = useNotifications();
   const [profile, setProfile] = useState<{ full_name: string | null; member_number: string | null; kyc_status: string } | null>(null);
 
   const claimAdmin = async () => {
@@ -80,6 +82,9 @@ export default function AppLayout() {
           <NavLink to="/settings" className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground">
             <Settings className="h-4 w-4" /> Settings
           </NavLink>
+          <button onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/dashboard"))} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground">
+            <ArrowLeft className="h-4 w-4" /> Back
+          </button>
           <button onClick={async () => { await signOut(); navigate("/"); }} className="mt-1 flex w-full items-center gap-3 rounded-md px-3 py-2 text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-accent-foreground">
             <LogOut className="h-4 w-4" /> Sign out
           </button>
@@ -89,11 +94,22 @@ export default function AppLayout() {
       {/* Main */}
       <div className="flex flex-1 flex-col">
         <header className="flex h-20 items-center justify-between border-b border-border bg-card px-6 lg:px-10">
-          <div>
+          <div className="flex items-center gap-3">
+            <Button variant="outline" size="icon" aria-label="Go back" onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/dashboard"))}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div>
             <p className="text-xs uppercase tracking-widest text-muted-foreground">Member</p>
             <h2 className="font-display text-lg font-semibold">{profile?.full_name || "Welcome"}</h2>
+            </div>
           </div>
           <div className="flex items-center gap-4">
+            <button onClick={() => navigate("/notifications")} aria-label="Notifications" className="relative rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
+              <Bell className="h-5 w-5" />
+              {unread > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">{unread}</span>
+              )}
+            </button>
             {profile?.kyc_status === "verified" ? (
               <span className="hidden items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success sm:inline-flex">
                 <ShieldCheck className="h-3.5 w-3.5" /> KYC verified
