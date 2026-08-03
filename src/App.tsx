@@ -54,6 +54,10 @@ const App = () => (
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/loans" element={<Loans />} />
+                <Route path="/wallets" element={<Wallets />} />
+                <Route path="/guarantors" element={<Guarantors />} />
+                <Route path="/statements" element={<Statements />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               </Route>
