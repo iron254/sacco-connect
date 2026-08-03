@@ -44,6 +44,50 @@ export type Database = {
         }
         Relationships: []
       }
+      loan_guarantors: {
+        Row: {
+          amount: number
+          created_at: string
+          guarantor_id: string
+          id: string
+          loan_id: string
+          requester_id: string
+          response_note: string | null
+          status: Database["public"]["Enums"]["guarantor_status"]
+          updated_at: string
+        }
+        Insert: {
+          amount?: number
+          created_at?: string
+          guarantor_id: string
+          id?: string
+          loan_id: string
+          requester_id: string
+          response_note?: string | null
+          status?: Database["public"]["Enums"]["guarantor_status"]
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          guarantor_id?: string
+          id?: string
+          loan_id?: string
+          requester_id?: string
+          response_note?: string | null
+          status?: Database["public"]["Enums"]["guarantor_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_guarantors_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       loans: {
         Row: {
           approved_at: string | null
@@ -127,6 +171,39 @@ export type Database = {
           phone?: string | null
           relationship?: string
           updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      notifications: {
+        Row: {
+          body: string | null
+          category: string
+          created_at: string
+          id: string
+          link: string | null
+          read_at: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          body?: string | null
+          category?: string
+          created_at?: string
+          id?: string
+          link?: string | null
+          read_at?: string | null
+          title?: string
           user_id?: string
         }
         Relationships: []
@@ -306,6 +383,14 @@ export type Database = {
         }[]
       }
       claim_admin_if_none: { Args: never; Returns: boolean }
+      find_member_by_number: {
+        Args: { _member_number: string }
+        Returns: {
+          full_name: string
+          id: string
+          member_number: string
+        }[]
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
@@ -313,9 +398,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      notify_user: {
+        Args: {
+          _body: string
+          _category?: string
+          _link?: string
+          _title: string
+          _user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       app_role: "member" | "teller" | "credit_officer" | "auditor" | "admin"
+      guarantor_status: "pending" | "accepted" | "declined"
       kyc_doc_type:
         | "national_id_front"
         | "national_id_back"
@@ -464,6 +560,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["member", "teller", "credit_officer", "auditor", "admin"],
+      guarantor_status: ["pending", "accepted", "declined"],
       kyc_doc_type: [
         "national_id_front",
         "national_id_back",
