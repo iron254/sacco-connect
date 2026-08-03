@@ -15,6 +15,10 @@ import NotFound from "./pages/NotFound";
 
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Loans = lazy(() => import("./pages/Loans"));
+const Wallets = lazy(() => import("./pages/Wallets"));
+const Guarantors = lazy(() => import("./pages/Guarantors"));
+const Statements = lazy(() => import("./pages/Statements"));
+const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
 
@@ -50,6 +54,10 @@ const App = () => (
               <Route element={<ProtectedRoute><AppLayout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/loans" element={<Loans />} />
+                <Route path="/wallets" element={<Wallets />} />
+                <Route path="/guarantors" element={<Guarantors />} />
+                <Route path="/statements" element={<Statements />} />
+                <Route path="/notifications" element={<Notifications />} />
                 <Route path="/settings" element={<Settings />} />
                 <Route path="/admin" element={<AdminRoute><Admin /></AdminRoute>} />
               </Route>
