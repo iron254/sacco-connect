@@ -28,12 +28,8 @@ export default function AppLayout() {
   const { unread } = useNotifications();
   const [profile, setProfile] = useState<{ full_name: string | null; member_number: string | null; kyc_status: string } | null>(null);
 
-  const claimAdmin = async () => {
-    const { data, error } = await supabase.rpc("claim_admin_if_none");
-    if (error) return toast.error(error.message);
-    if (data) { toast.success("You are now admin. Reloading…"); setTimeout(() => location.reload(), 600); }
-    else toast.error("An admin already exists.");
-  };
+
+
 
   useEffect(() => {
     if (!user) return;
@@ -71,11 +67,6 @@ export default function AppLayout() {
               <Shield className="h-4 w-4" />
               <span className="flex-1">Admin</span>
             </NavLink>
-          )}
-          {!isAdmin && (
-            <button onClick={claimAdmin} className="mt-4 flex w-full items-center gap-3 rounded-md px-3 py-2 text-xs text-sidebar-foreground/50 hover:text-sidebar-foreground/80">
-              <Shield className="h-3.5 w-3.5" /> Claim admin (first user)
-            </button>
           )}
         </nav>
         <div className="border-t border-sidebar-border p-4">
@@ -138,11 +129,6 @@ export default function AppLayout() {
                   {isAdmin && (
                     <DropdownMenuItem onClick={() => navigate("/admin")}>
                       <Shield className="mr-2 h-4 w-4" /> Admin
-                    </DropdownMenuItem>
-                  )}
-                  {!isAdmin && (
-                    <DropdownMenuItem onClick={claimAdmin}>
-                      <Shield className="mr-2 h-4 w-4" /> Claim admin (first user)
                     </DropdownMenuItem>
                   )}
                   <DropdownMenuItem onClick={() => navigate("/settings")}>
