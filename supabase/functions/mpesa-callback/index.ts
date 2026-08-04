@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
+import { isTrustedMpesaCaller } from "../_shared/mpesaAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,6 +12,15 @@ const ER: any = (globalThis as any).EdgeRuntime;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  // Only genuine Safaricom callbacks (URL carries the shared secret) are trusted.
+  if (!isTrustedMpesaCaller(req)) {
+    console.warn("[mpesa-callback] rejected untrusted caller");
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
 
   const ok = () =>
     new Response(JSON.stringify({ ResultCode: 0, ResultDesc: "Accepted" }), {

@@ -1,5 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isTrustedMpesaCaller } from "../_shared/mpesaAuth.ts";
 
 // Safaricom C2B Validation URL
 // Called by Safaricom BEFORE the customer is debited. Must respond fast.
@@ -9,6 +10,14 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+
+  if (!isTrustedMpesaCaller(req)) {
+    console.warn("[c2b-validation] rejected untrusted caller");
+    return new Response(
+      JSON.stringify({ ResultCode: "C2B00016", ResultDesc: "Other Error" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
 
   try {
     const payload = await req.json().catch(() => ({}));
