@@ -217,7 +217,7 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
                 ? "Review the details below. We'll send an M-Pesa STK push to your phone."
                 : method === "mpesa"
                   ? "We'll send an M-Pesa STK push to your phone."
-                  : "Funds are credited to your selected wallet immediately."}
+                  : "Bank, card and cash deposits are credited after an administrator verifies the payment."}
           </DialogDescription>
         </DialogHeader>
 
