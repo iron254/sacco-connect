@@ -84,7 +84,8 @@ export type ReceiptInput = {
   walletLabel?: string;
 };
 
-export const downloadReceipt = ({ tx, member, walletLabel }: ReceiptInput) => {
+export const downloadReceipt = async ({ tx, member, walletLabel }: ReceiptInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Transaction Receipt", `Receipt ID: ${tx.id}`);
 
@@ -156,7 +157,8 @@ export type FinancialReportInput = {
   }[];
 };
 
-export const downloadFinancialReportPDF = (data: FinancialReportInput) => {
+export const downloadFinancialReportPDF = async (data: FinancialReportInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Financial Report", data.rangeLabel);
 
@@ -252,7 +254,8 @@ export type StatementInput = {
   }[];
 };
 
-export const downloadStatementPDF = (data: StatementInput) => {
+export const downloadStatementPDF = async (data: StatementInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Member Statement", `${data.member.full_name || "Member"} · ${data.member.member_number || "—"} · ${data.rangeLabel}`);
 
