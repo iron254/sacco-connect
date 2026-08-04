@@ -1,5 +1,17 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF and jspdf-autotable are heavy (~700KB) — loaded on demand only.
+type JsPDFCtor = new (...args: any[]) => any;
+let jsPDF: JsPDFCtor | null = null;
+let autoTable: ((doc: any, opts: any) => void) | null = null;
+
+const ensurePdf = async () => {
+  if (!jsPDF || !autoTable) {
+    const [pdfMod, tableMod] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+    jsPDF = pdfMod.default as unknown as JsPDFCtor;
+    autoTable = tableMod.default as unknown as (doc: any, opts: any) => void;
+  }
+  return { jsPDF: jsPDF!, autoTable: autoTable! };
+};
+
 
 const fmt = (n: number) =>
   Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
