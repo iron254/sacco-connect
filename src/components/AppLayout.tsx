@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/useAdmin";
 import { useNotifications } from "@/hooks/useNotifications";
-import { toast } from "sonner";
+
 
 const nav = [
   { to: "/dashboard", icon: LayoutDashboard, label: "Overview" },
