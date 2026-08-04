@@ -11,6 +11,14 @@ import { isTrustedMpesaCaller } from "../_shared/mpesaAuth.ts";
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  if (!isTrustedMpesaCaller(req)) {
+    console.warn("[c2b-validation] rejected untrusted caller");
+    return new Response(
+      JSON.stringify({ ResultCode: "C2B00016", ResultDesc: "Other Error" }),
+      { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
   try {
     const payload = await req.json().catch(() => ({}));
     console.log("[c2b-validation] payload:", JSON.stringify(payload));

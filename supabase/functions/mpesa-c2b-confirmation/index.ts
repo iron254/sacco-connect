@@ -15,6 +15,14 @@ const ER: any = (globalThis as any).EdgeRuntime;
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
+  if (!isTrustedMpesaCaller(req)) {
+    console.warn("[c2b-confirmation] rejected untrusted caller");
+    return new Response(JSON.stringify({ error: "Forbidden" }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   const ack = () =>
     new Response(JSON.stringify({ ResultCode: "0", ResultDesc: "Accepted" }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
