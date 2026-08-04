@@ -86,7 +86,8 @@ Deno.serve(async (req) => {
     const ts = timestamp();
     const password = btoa(`${shortcode}${passkey}${ts}`);
     const msisdn = normalizePhone(phone);
-    const callbackUrl = `${supabaseUrl}/functions/v1/mpesa-callback`;
+    const callbackSecret = Deno.env.get("MPESA_CALLBACK_SECRET") ?? "";
+    const callbackUrl = `${supabaseUrl}/functions/v1/mpesa-callback?t=${encodeURIComponent(callbackSecret)}`;
 
     const stkRes = await fetch(`${baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",

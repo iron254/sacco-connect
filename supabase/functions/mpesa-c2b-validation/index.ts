@@ -1,5 +1,6 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { isTrustedMpesaCaller } from "../_shared/mpesaAuth.ts";
 
 // Safaricom C2B Validation URL
 // Called by Safaricom BEFORE the customer is debited. Must respond fast.
