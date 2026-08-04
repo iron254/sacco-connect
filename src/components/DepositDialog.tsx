@@ -117,21 +117,25 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
       tx_type: "deposit",
       amount: data.amount,
       currency: "KES",
-      status: "completed",
+      status: "pending",
       method,
       reference: data.reference,
-      description: `Deposit via ${method}`,
+      description: `Deposit via ${method} (awaiting verification)`,
     });
     setSubmitting(false);
     if (error) {
-      toast({ title: "Deposit failed", description: error.message, variant: "destructive" });
+      toast({ title: "Deposit request failed", description: error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Deposit successful", description: `KES ${data.amount.toLocaleString()} added to your wallet.` });
+    toast({
+      title: "Deposit submitted for verification",
+      description: `KES ${data.amount.toLocaleString()} will be credited once an administrator confirms the payment.`,
+    });
     reset();
     setOpen(false);
     onSuccess?.();
   };
+
 
   const watchTransaction = (cid: string) => {
     cleanupWatchers();
