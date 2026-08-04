@@ -7,12 +7,12 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
-import Auth from "./pages/Auth";
-import AppLayout from "./components/AppLayout";
-import Dashboard from "./pages/Dashboard";
 import { AdminRoute } from "./components/AdminRoute";
 import NotFound from "./pages/NotFound";
 
+const Auth = lazy(() => import("./pages/Auth"));
+const AppLayout = lazy(() => import("./components/AppLayout"));
+const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Onboarding = lazy(() => import("./pages/Onboarding"));
 const Loans = lazy(() => import("./pages/Loans"));
 const Wallets = lazy(() => import("./pages/Wallets"));
@@ -21,6 +21,7 @@ const Statements = lazy(() => import("./pages/Statements"));
 const Notifications = lazy(() => import("./pages/Notifications"));
 const Settings = lazy(() => import("./pages/Settings"));
 const Admin = lazy(() => import("./pages/Admin"));
+
 
 const queryClient = new QueryClient({
   defaultOptions: {
