@@ -1,5 +1,17 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+// jsPDF and jspdf-autotable are heavy (~700KB) — loaded on demand only.
+type JsPDFCtor = new (...args: any[]) => any;
+let jsPDF: JsPDFCtor | null = null;
+let autoTable: ((doc: any, opts: any) => void) | null = null;
+
+const ensurePdf = async () => {
+  if (!jsPDF || !autoTable) {
+    const [pdfMod, tableMod] = await Promise.all([import("jspdf"), import("jspdf-autotable")]);
+    jsPDF = pdfMod.default as unknown as JsPDFCtor;
+    autoTable = tableMod.default as unknown as (doc: any, opts: any) => void;
+  }
+  return { jsPDF: jsPDF!, autoTable: autoTable! };
+};
+
 
 const fmt = (n: number) =>
   Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -24,7 +36,7 @@ export const downloadCSV = (filename: string, headers: string[], rows: (string |
   downloadBlob(new Blob([csv], { type: "text/csv;charset=utf-8" }), filename);
 };
 
-const pdfHeader = (doc: jsPDF, title: string, subtitle?: string) => {
+const pdfHeader = (doc: any, title: string, subtitle?: string) => {
   doc.setFontSize(18);
   doc.setFont("helvetica", "bold");
   doc.text("SACCO", 14, 18);
@@ -41,7 +53,7 @@ const pdfHeader = (doc: jsPDF, title: string, subtitle?: string) => {
   doc.line(14, 37, 196, 37);
 };
 
-const pdfFooter = (doc: jsPDF) => {
+const pdfFooter = (doc: any) => {
   const pages = doc.getNumberOfPages();
   for (let i = 1; i <= pages; i++) {
     doc.setPage(i);
@@ -72,7 +84,8 @@ export type ReceiptInput = {
   walletLabel?: string;
 };
 
-export const downloadReceipt = ({ tx, member, walletLabel }: ReceiptInput) => {
+export const downloadReceipt = async ({ tx, member, walletLabel }: ReceiptInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Transaction Receipt", `Receipt ID: ${tx.id}`);
 
@@ -144,7 +157,8 @@ export type FinancialReportInput = {
   }[];
 };
 
-export const downloadFinancialReportPDF = (data: FinancialReportInput) => {
+export const downloadFinancialReportPDF = async (data: FinancialReportInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Financial Report", data.rangeLabel);
 
@@ -240,7 +254,8 @@ export type StatementInput = {
   }[];
 };
 
-export const downloadStatementPDF = (data: StatementInput) => {
+export const downloadStatementPDF = async (data: StatementInput) => {
+  const { jsPDF, autoTable } = await ensurePdf();
   const doc = new jsPDF();
   pdfHeader(doc, "Member Statement", `${data.member.full_name || "Member"} · ${data.member.member_number || "—"} · ${data.rangeLabel}`);
 

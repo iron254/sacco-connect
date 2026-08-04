@@ -81,7 +81,7 @@ export default function Auth() {
           <div className="text-sm text-primary-foreground/70">— Board of Directors, Umoja SACCO</div>
         </div>
         <div className="flex items-center gap-2 text-xs uppercase tracking-widest text-primary-foreground/60">
-          <span className="h-px w-8 bg-accent" /> SASRA-regulated · Bank-grade security
+          <span className="h-px w-8 bg-accent" /> SASRA-regulated
         </div>
       </div>
 
