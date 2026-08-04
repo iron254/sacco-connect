@@ -214,10 +214,8 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
             {step === "status"
               ? "We're waiting for confirmation from M-Pesa."
               : step === "confirm"
-                ? "Review the details below. We'll send an M-Pesa STK push to your phone."
-                : method === "mpesa"
-                  ? "We'll send an M-Pesa STK push to your phone."
-                  : "Bank, card and cash deposits are credited after an administrator verifies the payment."}
+                ? "Review the details below. We'll send an M-Pesa prompt to your phone."
+                : "We'll send an M-Pesa prompt to your phone."}
           </DialogDescription>
         </DialogHeader>
 
@@ -307,34 +305,15 @@ export function DepositDialog({ wallets, defaultWalletId, trigger, onSuccess }: 
                 value={amount} onChange={e => setAmount(e.target.value)} required />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="method">Payment method</Label>
-              <Select value={method} onValueChange={(v) => setMethod(v as typeof method)}>
-                <SelectTrigger id="method"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mpesa">M-Pesa</SelectItem>
-                  <SelectItem value="bank_transfer">Bank transfer</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="cash">Cash (at branch)</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label htmlFor="phone">M-Pesa phone number</Label>
+              <div className="relative">
+                <Smartphone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input id="phone" type="tel" inputMode="tel" placeholder="0712 345 678" className="pl-9"
+                  value={phone} onChange={e => setPhone(e.target.value)} required />
+              </div>
+              <p className="text-xs text-muted-foreground">Safaricom number registered for M-Pesa.</p>
             </div>
-            {method === "mpesa" ? (
-              <div className="space-y-2">
-                <Label htmlFor="phone">M-Pesa phone number</Label>
-                <div className="relative">
-                  <Smartphone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input id="phone" type="tel" inputMode="tel" placeholder="0712 345 678" className="pl-9"
-                    value={phone} onChange={e => setPhone(e.target.value)} required />
-                </div>
-                <p className="text-xs text-muted-foreground">Safaricom number registered for M-Pesa.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <Label htmlFor="reference">Reference (optional)</Label>
-                <Input id="reference" maxLength={64} placeholder="e.g. bank slip number"
-                  value={reference} onChange={e => setReference(e.target.value)} />
-              </div>
-            )}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
               <Button type="submit" variant="gold" disabled={submitting || !walletId}>
