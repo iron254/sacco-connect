@@ -10,7 +10,7 @@ const features = [
   { icon: Users, title: "Digital guarantorship", desc: "Request and approve loan guarantees in-app — no more paper forms." },
   { icon: FileText, title: "Instant statements", desc: "Generate audit-ready PDF statements for any date range in seconds." },
   { icon: Bell, title: "Live notifications", desc: "Stay informed about repayments, dividends and AGM resolutions." },
-  { icon: ShieldCheck, title: "Bank-grade security", desc: "Every transaction is logged with a full audit trail and role-based access." },
+  { icon: ShieldCheck, title: "Secure by design", desc: "Every transaction is logged with a full audit trail and role-based access." },
 ];
 
 export default function Landing() {
