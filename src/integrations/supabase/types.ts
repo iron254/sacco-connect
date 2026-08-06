@@ -95,6 +95,7 @@ export type Database = {
           created_at: string
           id: string
           interest_rate: number
+          loan_type: Database["public"]["Enums"]["loan_type"]
           monthly_payment: number
           principal: number
           purpose: string | null
@@ -110,6 +111,7 @@ export type Database = {
           created_at?: string
           id?: string
           interest_rate?: number
+          loan_type?: Database["public"]["Enums"]["loan_type"]
           monthly_payment?: number
           principal: number
           purpose?: string | null
@@ -125,6 +127,7 @@ export type Database = {
           created_at?: string
           id?: string
           interest_rate?: number
+          loan_type?: Database["public"]["Enums"]["loan_type"]
           monthly_payment?: number
           principal?: number
           purpose?: string | null
@@ -421,6 +424,7 @@ export type Database = {
         | "proof_of_address"
       kyc_status: "pending" | "submitted" | "verified" | "rejected"
       loan_status: "pending" | "approved" | "rejected" | "active" | "closed"
+      loan_type: "personal" | "business"
       membership_tier: "individual" | "corporate" | "youth"
       payment_method: "mpesa" | "bank_transfer" | "card" | "cash" | "internal"
       transaction_status: "pending" | "completed" | "failed" | "reversed"
@@ -571,6 +575,7 @@ export const Constants = {
       ],
       kyc_status: ["pending", "submitted", "verified", "rejected"],
       loan_status: ["pending", "approved", "rejected", "active", "closed"],
+      loan_type: ["personal", "business"],
       membership_tier: ["individual", "corporate", "youth"],
       payment_method: ["mpesa", "bank_transfer", "card", "cash", "internal"],
       transaction_status: ["pending", "completed", "failed", "reversed"],
