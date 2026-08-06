@@ -22,6 +22,7 @@ type Loan = {
   status: "pending" | "approved" | "rejected" | "active" | "closed";
   created_at: string;
   rejection_reason: string | null;
+  loan_type: "personal" | "business";
 };
 
 const fmt = (n: number) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -49,6 +50,7 @@ export default function Loans() {
   const [principal, setPrincipal] = useState("");
   const [term, setTerm] = useState("12");
   const [purpose, setPurpose] = useState("");
+  const [loanType, setLoanType] = useState<"personal" | "business">("personal");
 
   const RATE = 12;
   const eligibility = shares * 3;
@@ -81,12 +83,13 @@ export default function Loans() {
       interest_rate: RATE,
       monthly_payment: Number(estimated.toFixed(2)),
       purpose: purpose || null,
+      loan_type: loanType,
     });
     setSubmitting(false);
     if (error) return toast.error(error.message);
     toast.success("Loan application submitted");
     setOpen(false);
-    setPrincipal(""); setTerm("12"); setPurpose("");
+    setPrincipal(""); setTerm("12"); setPurpose(""); setLoanType("personal");
     load();
   };
 
@@ -171,6 +174,7 @@ export default function Loans() {
               <thead className="text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="py-2">Date</th>
+                  <th>Type</th>
                   <th>Amount</th>
                   <th>Term</th>
                   <th>Monthly</th>
@@ -181,6 +185,7 @@ export default function Loans() {
                 {loans.map(l => (
                   <tr key={l.id} className="border-t border-border">
                     <td className="py-3">{new Date(l.created_at).toLocaleDateString()}</td>
+                    <td className="capitalize">{l.loan_type === "business" ? "Business" : "Personal"}</td>
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
                     <td className="tabular-nums">KES {fmt(l.monthly_payment)}</td>
