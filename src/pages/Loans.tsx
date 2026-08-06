@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { HandCoins, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
@@ -21,6 +22,7 @@ type Loan = {
   status: "pending" | "approved" | "rejected" | "active" | "closed";
   created_at: string;
   rejection_reason: string | null;
+  loan_type: "personal" | "business";
 };
 
 const fmt = (n: number) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -48,6 +50,7 @@ export default function Loans() {
   const [principal, setPrincipal] = useState("");
   const [term, setTerm] = useState("12");
   const [purpose, setPurpose] = useState("");
+  const [loanType, setLoanType] = useState<"personal" | "business">("personal");
 
   const RATE = 12;
   const eligibility = shares * 3;
@@ -80,12 +83,13 @@ export default function Loans() {
       interest_rate: RATE,
       monthly_payment: Number(estimated.toFixed(2)),
       purpose: purpose || null,
+      loan_type: loanType,
     });
     setSubmitting(false);
     if (error) return toast.error(error.message);
     toast.success("Loan application submitted");
     setOpen(false);
-    setPrincipal(""); setTerm("12"); setPurpose("");
+    setPrincipal(""); setTerm("12"); setPurpose(""); setLoanType("personal");
     load();
   };
 
@@ -97,7 +101,6 @@ export default function Loans() {
             <div>
               <p className="text-xs uppercase tracking-widest text-primary-foreground/60">Available to borrow</p>
               <p className="mt-1 font-display text-4xl font-semibold tabular-nums">KES {fmt(eligibility)}</p>
-              <p className="mt-2 text-sm text-primary-foreground/80">Up to 3× your share capital (KES {fmt(shares)}). Annual rate {RATE}%.</p>
             </div>
             <HandCoins className="h-8 w-8 text-primary-foreground/70" />
           </div>
@@ -110,6 +113,16 @@ export default function Loans() {
                 <DialogTitle>Apply for a loan</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
+                <div>
+                  <Label htmlFor="ltype">Loan type</Label>
+                  <Select value={loanType} onValueChange={(v) => setLoanType(v as "personal" | "business")}>
+                    <SelectTrigger id="ltype"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="personal">Personal loan</SelectItem>
+                      <SelectItem value="business">Business loan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div>
                   <Label htmlFor="amt">Amount (KES)</Label>
                   <Input id="amt" type="number" min="1" max={eligibility} value={principal} onChange={e => setPrincipal(e.target.value)} placeholder="e.g. 50000" />
@@ -161,6 +174,7 @@ export default function Loans() {
               <thead className="text-left text-xs uppercase text-muted-foreground">
                 <tr>
                   <th className="py-2">Date</th>
+                  <th>Type</th>
                   <th>Amount</th>
                   <th>Term</th>
                   <th>Monthly</th>
@@ -171,6 +185,7 @@ export default function Loans() {
                 {loans.map(l => (
                   <tr key={l.id} className="border-t border-border">
                     <td className="py-3">{new Date(l.created_at).toLocaleDateString()}</td>
+                    <td className="capitalize">{l.loan_type === "business" ? "Business" : "Personal"}</td>
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
                     <td className="tabular-nums">KES {fmt(l.monthly_payment)}</td>
