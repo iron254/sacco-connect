@@ -110,6 +110,16 @@ export default function Loans() {
               </DialogHeader>
               <div className="space-y-4">
                 <div>
+                  <Label htmlFor="ltype">Loan type</Label>
+                  <Select value={loanType} onValueChange={(v) => setLoanType(v as "personal" | "business")}>
+                    <SelectTrigger id="ltype"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="personal">Personal loan</SelectItem>
+                      <SelectItem value="business">Business loan</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
                   <Label htmlFor="amt">Amount (KES)</Label>
                   <Input id="amt" type="number" min="1" max={eligibility} value={principal} onChange={e => setPrincipal(e.target.value)} placeholder="e.g. 50000" />
                   <p className="mt-1 text-xs text-muted-foreground">Maximum: KES {fmt(eligibility)}</p>
