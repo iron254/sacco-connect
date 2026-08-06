@@ -97,7 +97,6 @@ export default function Loans() {
             <div>
               <p className="text-xs uppercase tracking-widest text-primary-foreground/60">Available to borrow</p>
               <p className="mt-1 font-display text-4xl font-semibold tabular-nums">KES {fmt(eligibility)}</p>
-              <p className="mt-2 text-sm text-primary-foreground/80">Up to 3× your share capital (KES {fmt(shares)}). Annual rate {RATE}%.</p>
             </div>
             <HandCoins className="h-8 w-8 text-primary-foreground/70" />
           </div>
