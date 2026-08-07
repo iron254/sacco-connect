@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { Card } from "@/components/ui/card";
@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
-import { HandCoins, AlertCircle } from "lucide-react";
+import { HandCoins, AlertCircle, CheckCircle2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 
 type Loan = {
@@ -21,6 +22,7 @@ type Loan = {
   purpose: string | null;
   status: "pending" | "approved" | "rejected" | "active" | "closed";
   created_at: string;
+  approved_at: string | null;
   rejection_reason: string | null;
   loan_type: "personal" | "business";
 };
@@ -41,19 +43,59 @@ const statusTone: Record<Loan["status"], "default" | "secondary" | "destructive"
   closed: "outline",
 };
 
+const PURPOSE_CATEGORIES = [
+  "School fees",
+  "Medical",
+  "Business stock or expansion",
+  "Asset purchase",
+  "Home improvement",
+  "Emergency",
+  "Debt consolidation",
+  "Other",
+] as const;
+
+const RATE = 12;
+const MIN_SHARES = 1000;
+const MULTIPLIER = 3;
+const MAX_TERM = 60;
+
+function addMonths(date: Date, n: number) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+function repayment(loan: Loan) {
+  const start = new Date(loan.approved_at || loan.created_at);
+  const now = new Date();
+  const monthsElapsed = Math.max(
+    0,
+    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) -
+      (now.getDate() < start.getDate() ? 1 : 0)
+  );
+  const paidInstalments = Math.min(monthsElapsed, loan.term_months);
+  const total = loan.monthly_payment * loan.term_months;
+  const paid = loan.status === "closed" ? total : loan.monthly_payment * paidInstalments;
+  const outstanding = Math.max(0, total - paid);
+  const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
+  const nextDue = paidInstalments < loan.term_months ? addMonths(start, paidInstalments + 1) : null;
+  return { total, paid, outstanding, pct, paidInstalments, nextDue };
+}
+
 export default function Loans() {
   const { user } = useAuth();
   const [loans, setLoans] = useState<Loan[]>([]);
   const [shares, setShares] = useState(0);
+  const [kyc, setKyc] = useState<string>("pending");
   const [open, setOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [principal, setPrincipal] = useState("");
   const [term, setTerm] = useState("12");
-  const [purpose, setPurpose] = useState("");
+  const [purposeCategory, setPurposeCategory] = useState<string>("School fees");
+  const [purposeDetails, setPurposeDetails] = useState("");
   const [loanType, setLoanType] = useState<"personal" | "business">("personal");
 
-  const RATE = 12;
-  const eligibility = shares * 3;
+  const eligibility = shares * MULTIPLIER;
   const principalNum = Number(principal) || 0;
   const termNum = Number(term) || 0;
   const estimated = principalNum > 0 && termNum > 0 ? monthlyPayment(principalNum, RATE, termNum) : 0;
@@ -61,20 +103,39 @@ export default function Loans() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [{ data: ws }, { data: ls }] = await Promise.all([
+    const [{ data: ws }, { data: ls }, { data: prof }] = await Promise.all([
       supabase.from("wallets").select("balance, wallet_type").eq("user_id", user.id).eq("wallet_type", "shares").maybeSingle(),
       supabase.from("loans").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("profiles").select("kyc_status").eq("id", user.id).maybeSingle(),
     ]);
     setShares(Number(ws?.balance || 0));
     setLoans((ls || []) as Loan[]);
+    setKyc(prof?.kyc_status || "pending");
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
 
+  const hasPending = loans.some(l => l.status === "pending");
+  const activeLoans = loans.filter(l => l.status === "active" || l.status === "approved");
+
+  const rules = useMemo(() => [
+    { label: `KYC verified`, ok: kyc === "verified", hint: "Complete your KYC to borrow." },
+    { label: `Minimum share capital of KES ${fmt(MIN_SHARES)}`, ok: shares >= MIN_SHARES, hint: `You hold KES ${fmt(shares)}.` },
+    { label: `Borrow up to ${MULTIPLIER}× share capital`, ok: eligibility > 0, hint: `Your limit is KES ${fmt(eligibility)}.` },
+    { label: "No application under review", ok: !hasPending, hint: "Wait for your pending application to be decided." },
+    { label: "No more than one running loan", ok: activeLoans.length < 1, hint: "Clear your running loan first." },
+    { label: `Repayment term of 1–${MAX_TERM} months`, ok: true, hint: "Longer terms lower the monthly instalment." },
+  ], [kyc, shares, eligibility, hasPending, activeLoans.length]);
+
+  const canApply = rules.every(r => r.ok);
+  const detailsTooShort = purposeDetails.trim().length < 10;
+
   const submit = async () => {
     if (!user) return;
     if (principalNum <= 0) return toast.error("Enter a valid amount");
+    if (termNum < 1 || termNum > MAX_TERM) return toast.error(`Term must be between 1 and ${MAX_TERM} months`);
     if (overEligibility) return toast.error("Amount exceeds your loan eligibility");
+    if (detailsTooShort) return toast.error("Please describe what the loan will be used for");
     setSubmitting(true);
     const { error } = await supabase.from("loans").insert({
       user_id: user.id,
@@ -82,14 +143,14 @@ export default function Loans() {
       term_months: termNum,
       interest_rate: RATE,
       monthly_payment: Number(estimated.toFixed(2)),
-      purpose: purpose || null,
+      purpose: `${purposeCategory} — ${purposeDetails.trim()}`,
       loan_type: loanType,
     });
     setSubmitting(false);
     if (error) return toast.error(error.message);
     toast.success("Loan application submitted");
     setOpen(false);
-    setPrincipal(""); setTerm("12"); setPurpose(""); setLoanType("personal");
+    setPrincipal(""); setTerm("12"); setPurposeDetails(""); setPurposeCategory("School fees"); setLoanType("personal");
     load();
   };
 
@@ -106,9 +167,9 @@ export default function Loans() {
           </div>
           <Dialog open={open} onOpenChange={setOpen}>
             <DialogTrigger asChild>
-              <Button variant="gold" size="lg" className="mt-6" disabled={eligibility <= 0}>Apply for a loan</Button>
+              <Button variant="gold" size="lg" className="mt-6" disabled={!canApply}>Apply for a loan</Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[85vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Apply for a loan</DialogTitle>
               </DialogHeader>
@@ -130,15 +191,25 @@ export default function Loans() {
                 </div>
                 <div>
                   <Label htmlFor="term">Term (months)</Label>
-                  <Input id="term" type="number" min="1" max="60" value={term} onChange={e => setTerm(e.target.value)} />
+                  <Input id="term" type="number" min="1" max={MAX_TERM} value={term} onChange={e => setTerm(e.target.value)} />
                 </div>
                 <div>
-                  <Label htmlFor="purpose">Purpose (optional)</Label>
-                  <Textarea id="purpose" value={purpose} onChange={e => setPurpose(e.target.value)} placeholder="e.g. School fees" />
+                  <Label htmlFor="pcat">Purpose category</Label>
+                  <Select value={purposeCategory} onValueChange={setPurposeCategory}>
+                    <SelectTrigger id="pcat"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PURPOSE_CATEGORIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="purpose">Purpose details</Label>
+                  <Textarea id="purpose" value={purposeDetails} onChange={e => setPurposeDetails(e.target.value)} placeholder="Describe exactly what the funds will be used for, e.g. Term 2 school fees for two children at Green Hills Academy." />
+                  <p className="mt-1 text-xs text-muted-foreground">{detailsTooShort ? "At least 10 characters — credit officers use this to assess your application." : `${purposeDetails.trim().length} characters`}</p>
                 </div>
                 <div className="rounded-md bg-muted/50 p-3 text-sm">
                   <div className="flex justify-between"><span className="text-muted-foreground">Estimated monthly payment</span><span className="font-semibold tabular-nums">KES {fmt(estimated)}</span></div>
-                  <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Interest rate (p.a.)</span><span className="tabular-nums">{RATE}%</span></div>
+                  <div className="mt-1 flex justify-between"><span className="text-muted-foreground">Total repayable</span><span className="tabular-nums">KES {fmt(estimated * termNum)}</span></div>
                 </div>
                 {overEligibility && (
                   <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-xs text-destructive">
@@ -148,7 +219,7 @@ export default function Loans() {
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button>
-                <Button onClick={submit} disabled={submitting || overEligibility || principalNum <= 0}>{submitting ? "Submitting…" : "Submit application"}</Button>
+                <Button onClick={submit} disabled={submitting || overEligibility || principalNum <= 0 || detailsTooShort}>{submitting ? "Submitting…" : "Submit application"}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -160,6 +231,54 @@ export default function Loans() {
           <p className="mt-2 text-sm text-muted-foreground">{loans.filter(l => l.status === "pending").length} pending review</p>
         </Card>
       </div>
+
+      <Card className="p-6 shadow-card">
+        <h4 className="font-display text-lg font-semibold">Loan eligibility rules</h4>
+        <p className="mt-1 text-sm text-muted-foreground">All rules must be met before an application can be submitted.</p>
+        <ul className="mt-4 grid gap-3 md:grid-cols-2">
+          {rules.map(r => (
+            <li key={r.label} className="flex items-start gap-3 rounded-md border border-border p-3">
+              {r.ok
+                ? <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
+                : <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />}
+              <div>
+                <p className="text-sm font-medium">{r.label}</p>
+                <p className="text-xs text-muted-foreground">{r.hint}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </Card>
+
+      {activeLoans.length > 0 && (
+        <Card className="p-6 shadow-card">
+          <h4 className="font-display text-lg font-semibold">Repayment status</h4>
+          <div className="mt-4 space-y-6">
+            {activeLoans.map(l => {
+              const r = repayment(l);
+              return (
+                <div key={l.id} className="rounded-md border border-border p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold">{l.loan_type === "business" ? "Business" : "Personal"} loan · KES {fmt(l.principal)}</p>
+                      <p className="text-xs text-muted-foreground">{l.term_months} months at {l.interest_rate}% p.a. · {r.paidInstalments} of {l.term_months} instalments due to date</p>
+                    </div>
+                    <Badge variant={statusTone[l.status]}>{l.status}</Badge>
+                  </div>
+                  <Progress value={r.pct} className="mt-4" />
+                  <div className="mt-3 grid gap-3 text-sm sm:grid-cols-4">
+                    <div><p className="text-xs text-muted-foreground">Monthly instalment</p><p className="font-medium tabular-nums">KES {fmt(l.monthly_payment)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Repaid to date</p><p className="font-medium tabular-nums text-success">KES {fmt(r.paid)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Outstanding</p><p className="font-medium tabular-nums">KES {fmt(r.outstanding)}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Next due</p><p className="font-medium">{r.nextDue ? r.nextDue.toLocaleDateString() : "Fully scheduled"}</p></div>
+                  </div>
+                  {l.purpose && <p className="mt-3 text-xs text-muted-foreground">Purpose: {l.purpose}</p>}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       <Card className="p-6 shadow-card">
         <h4 className="font-display text-lg font-semibold mb-4">Application history</h4>
@@ -178,17 +297,19 @@ export default function Loans() {
                   <th>Amount</th>
                   <th>Term</th>
                   <th>Monthly</th>
+                  <th>Purpose</th>
                   <th>Status</th>
                 </tr>
               </thead>
               <tbody>
                 {loans.map(l => (
-                  <tr key={l.id} className="border-t border-border">
+                  <tr key={l.id} className="border-t border-border align-top">
                     <td className="py-3">{new Date(l.created_at).toLocaleDateString()}</td>
                     <td className="capitalize">{l.loan_type === "business" ? "Business" : "Personal"}</td>
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
                     <td className="tabular-nums">KES {fmt(l.monthly_payment)}</td>
+                    <td className="max-w-[220px] text-xs text-muted-foreground">{l.purpose || "—"}</td>
                     <td><Badge variant={statusTone[l.status]}>{l.status}</Badge></td>
                   </tr>
                 ))}
