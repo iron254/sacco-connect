@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/hooks/useNotifications";
-import { Bell, BellOff, CheckCheck, HandCoins, Users, ArrowLeftRight } from "lucide-react";
+import { Bell, BellOff, CheckCheck, HandCoins, Users, ArrowLeftRight, Trash2, Eraser } from "lucide-react";
 
 const icons: Record<string, typeof Bell> = {
   loan: HandCoins,
