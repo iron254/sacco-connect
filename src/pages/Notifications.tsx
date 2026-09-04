@@ -23,9 +23,14 @@ export default function Notifications() {
           <h1 className="font-display text-3xl font-semibold">Notifications</h1>
           <p className="text-sm text-muted-foreground">Loan decisions, guarantor requests and wallet activity.</p>
         </div>
-        <Button variant="outline" onClick={markAllRead} disabled={!unread}>
-          <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={markAllRead} disabled={!unread}>
+            <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
+          </Button>
+          <Button variant="ghost" onClick={clearRead} disabled={readCount < 1}>
+            <Eraser className="mr-2 h-4 w-4" /> Clear read
+          </Button>
+        </div>
       </div>
 
       <Card className="p-6 shadow-card">
