@@ -18,12 +18,19 @@ export function useNotifications() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase
       .from("notifications")
       .select("id, title, body, category, link, read_at, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(100);
+    if (error) console.error("Failed to load notifications:", error.message);
     setItems((data || []) as Notification[]);
     setLoading(false);
   }, [user]);
