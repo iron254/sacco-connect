@@ -70,6 +70,9 @@ export default function Notifications() {
                       </Button>
                     )}
                     {!n.read_at && <Button size="sm" variant="ghost" onClick={() => markRead(n.id)}>Mark read</Button>}
+                    <Button size="icon" variant="ghost" aria-label="Delete notification" onClick={() => remove(n.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </li>
               );
