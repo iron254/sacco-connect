@@ -18,12 +18,19 @@ export function useNotifications() {
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
-    if (!user) return;
-    const { data } = await supabase
+    if (!user) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    const { data, error } = await supabase
       .from("notifications")
       .select("id, title, body, category, link, read_at, created_at")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(100);
+    if (error) console.error("Failed to load notifications:", error.message);
     setItems((data || []) as Notification[]);
     setLoading(false);
   }, [user]);
@@ -33,25 +40,49 @@ export function useNotifications() {
   useEffect(() => {
     if (!user) return;
     const channel = supabase
-      .channel("notifications-feed")
+      .channel(`notifications-feed-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => load())
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    // Polling fallback in case the realtime socket drops
+    const timer = window.setInterval(() => load(), 60_000);
+    const onFocus = () => load();
+    window.addEventListener("focus", onFocus);
+    return () => {
+      supabase.removeChannel(channel);
+      window.clearInterval(timer);
+      window.removeEventListener("focus", onFocus);
+    };
   }, [user, load]);
 
   const unread = items.filter(n => !n.read_at).length;
 
   const markRead = useCallback(async (id: string) => {
-    await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
-    setItems(prev => prev.map(n => (n.id === id ? { ...n, read_at: new Date().toISOString() } : n)));
-  }, []);
+    const now = new Date().toISOString();
+    setItems(prev => prev.map(n => (n.id === id ? { ...n, read_at: n.read_at ?? now } : n)));
+    const { error } = await supabase.from("notifications").update({ read_at: now }).eq("id", id).is("read_at", null);
+    if (error) { console.error("Failed to mark notification read:", error.message); load(); }
+  }, [load]);
 
   const markAllRead = useCallback(async () => {
     if (!user) return;
     const now = new Date().toISOString();
-    await supabase.from("notifications").update({ read_at: now }).eq("user_id", user.id).is("read_at", null);
     setItems(prev => prev.map(n => (n.read_at ? n : { ...n, read_at: now })));
-  }, [user]);
+    const { error } = await supabase.from("notifications").update({ read_at: now }).eq("user_id", user.id).is("read_at", null);
+    if (error) { console.error("Failed to mark all read:", error.message); load(); }
+  }, [user, load]);
 
-  return { items, unread, loading, load, markRead, markAllRead };
+  const remove = useCallback(async (id: string) => {
+    setItems(prev => prev.filter(n => n.id !== id));
+    const { error } = await supabase.from("notifications").delete().eq("id", id);
+    if (error) { console.error("Failed to delete notification:", error.message); load(); }
+  }, [load]);
+
+  const clearRead = useCallback(async () => {
+    if (!user) return;
+    setItems(prev => prev.filter(n => !n.read_at));
+    const { error } = await supabase.from("notifications").delete().eq("user_id", user.id).not("read_at", "is", null);
+    if (error) { console.error("Failed to clear notifications:", error.message); load(); }
+  }, [user, load]);
+
+  return { items, unread, loading, load, markRead, markAllRead, remove, clearRead };
 }

@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useNotifications } from "@/hooks/useNotifications";
-import { Bell, BellOff, CheckCheck, HandCoins, Users, ArrowLeftRight } from "lucide-react";
+import { Bell, BellOff, CheckCheck, HandCoins, Users, ArrowLeftRight, Trash2, Eraser } from "lucide-react";
 
 const icons: Record<string, typeof Bell> = {
   loan: HandCoins,
@@ -13,7 +13,8 @@ const icons: Record<string, typeof Bell> = {
 };
 
 export default function Notifications() {
-  const { items, unread, loading, markRead, markAllRead } = useNotifications();
+  const { items, unread, loading, markRead, markAllRead, remove, clearRead } = useNotifications();
+  const readCount = items.length - unread;
 
   return (
     <div className="space-y-6">
@@ -22,9 +23,14 @@ export default function Notifications() {
           <h1 className="font-display text-3xl font-semibold">Notifications</h1>
           <p className="text-sm text-muted-foreground">Loan decisions, guarantor requests and wallet activity.</p>
         </div>
-        <Button variant="outline" onClick={markAllRead} disabled={!unread}>
-          <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={markAllRead} disabled={!unread}>
+            <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
+          </Button>
+          <Button variant="ghost" onClick={clearRead} disabled={readCount < 1}>
+            <Eraser className="mr-2 h-4 w-4" /> Clear read
+          </Button>
+        </div>
       </div>
 
       <Card className="p-6 shadow-card">
@@ -64,6 +70,9 @@ export default function Notifications() {
                       </Button>
                     )}
                     {!n.read_at && <Button size="sm" variant="ghost" onClick={() => markRead(n.id)}>Mark read</Button>}
+                    <Button size="icon" variant="ghost" aria-label="Delete notification" onClick={() => remove(n.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </li>
               );
