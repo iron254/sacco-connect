@@ -13,7 +13,8 @@ const icons: Record<string, typeof Bell> = {
 };
 
 export default function Notifications() {
-  const { items, unread, loading, markRead, markAllRead } = useNotifications();
+  const { items, unread, loading, markRead, markAllRead, remove, clearRead } = useNotifications();
+  const readCount = items.length - unread;
 
   return (
     <div className="space-y-6">
