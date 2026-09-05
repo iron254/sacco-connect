@@ -3,13 +3,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield, ChevronDown, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Settings, LogOut, ShieldCheck, Shield, ChevronDown, ArrowLeft } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/useAdmin";
-import { useNotifications } from "@/hooks/useNotifications";
+
 
 
 const nav = [
