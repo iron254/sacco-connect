@@ -65,22 +65,25 @@ function addMonths(date: Date, n: number) {
   return d;
 }
 
-function repayment(loan: Loan) {
+type Repayment = { id: string; loan_id: string; installment_no: number; amount: number; status: string; paid_at: string };
+
+function schedule(loan: Loan, paidNos: Set<number>) {
   const start = new Date(loan.approved_at || loan.created_at);
   const now = new Date();
-  const monthsElapsed = Math.max(
-    0,
-    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) -
-      (now.getDate() < start.getDate() ? 1 : 0)
-  );
-  const paidInstalments = Math.min(monthsElapsed, loan.term_months);
+  const items = Array.from({ length: loan.term_months }, (_, i) => {
+    const no = i + 1;
+    const due = addMonths(start, no);
+    return { no, due, amount: loan.monthly_payment, paid: paidNos.has(no), overdue: !paidNos.has(no) && due <= now };
+  });
   const total = loan.monthly_payment * loan.term_months;
-  const paid = loan.status === "closed" ? total : loan.monthly_payment * paidInstalments;
+  const paidCount = items.filter(i => i.paid).length;
+  const paid = loan.monthly_payment * paidCount;
   const outstanding = Math.max(0, total - paid);
   const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
-  const nextDue = paidInstalments < loan.term_months ? addMonths(start, paidInstalments + 1) : null;
-  return { total, paid, outstanding, pct, paidInstalments, nextDue };
+  const next = items.find(i => !i.paid) || null;
+  return { items, total, paid, outstanding, pct, paidCount, nextDue: next?.due ?? null, next };
 }
+
 
 export default function Loans() {
   const { user } = useAuth();
@@ -94,6 +97,9 @@ export default function Loans() {
   const [purposeCategory, setPurposeCategory] = useState<string>("School fees");
   const [purposeDetails, setPurposeDetails] = useState("");
   const [loanType, setLoanType] = useState<"personal" | "business">("personal");
+  const [repayments, setRepayments] = useState<Repayment[]>([]);
+  const [savingsWalletId, setSavingsWalletId] = useState<string | null>(null);
+  const [payingKey, setPayingKey] = useState<string | null>(null);
 
   const eligibility = shares * MULTIPLIER;
   const principalNum = Number(principal) || 0;
@@ -103,17 +109,52 @@ export default function Loans() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [{ data: ws }, { data: ls }, { data: prof }] = await Promise.all([
-      supabase.from("wallets").select("balance, wallet_type").eq("user_id", user.id).eq("wallet_type", "shares").maybeSingle(),
+    const [{ data: ws }, { data: ls }, { data: prof }, { data: rp }] = await Promise.all([
+      supabase.from("wallets").select("id, balance, wallet_type").eq("user_id", user.id).in("wallet_type", ["shares", "savings"]),
       supabase.from("loans").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("kyc_status").eq("id", user.id).maybeSingle(),
+      supabase.from("loan_repayments").select("id, loan_id, installment_no, amount, status, paid_at").eq("user_id", user.id),
     ]);
-    setShares(Number(ws?.balance || 0));
+    const wallets = (ws || []) as { id: string; balance: number; wallet_type: string }[];
+    setShares(Number(wallets.find(w => w.wallet_type === "shares")?.balance || 0));
+    setSavingsWalletId(wallets.find(w => w.wallet_type === "savings")?.id ?? null);
     setLoans((ls || []) as Loan[]);
     setKyc(prof?.kyc_status || "pending");
+    setRepayments(((rp || []) as any[]).map(r => ({ ...r, amount: Number(r.amount) })) as Repayment[]);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  const repay = async (loan: Loan, instalment: { no: number; due: Date; amount: number }) => {
+    if (!user) return;
+    if (!savingsWalletId) return toast.error("Savings wallet not found");
+    const key = `${loan.id}-${instalment.no}`;
+    setPayingKey(key);
+    const { data: tx, error: txErr } = await supabase.from("transactions").insert({
+      user_id: user.id,
+      wallet_id: savingsWalletId,
+      tx_type: "deposit",
+      amount: Number(instalment.amount.toFixed(2)),
+      method: "mpesa",
+      status: "pending",
+      description: `Loan repayment · instalment ${instalment.no} of ${loan.term_months}`,
+    }).select("id").single();
+    if (txErr) { setPayingKey(null); return toast.error(txErr.message); }
+    const { error } = await supabase.from("loan_repayments").insert({
+      loan_id: loan.id,
+      user_id: user.id,
+      installment_no: instalment.no,
+      amount: Number(instalment.amount.toFixed(2)),
+      due_date: instalment.due.toISOString().slice(0, 10),
+      status: "paid",
+      transaction_id: tx.id,
+    });
+    setPayingKey(null);
+    if (error) return toast.error(error.message.includes("duplicate") ? "That instalment is already paid" : error.message);
+    toast.success(`Instalment ${instalment.no} marked paid — deposit recorded`);
+    load();
+  };
+
 
   const hasPending = loans.some(l => l.status === "pending");
   const activeLoans = loans.filter(l => l.status === "active" || l.status === "approved");
@@ -255,13 +296,14 @@ export default function Loans() {
           <h4 className="font-display text-lg font-semibold">Repayment status</h4>
           <div className="mt-4 space-y-6">
             {activeLoans.map(l => {
-              const r = repayment(l);
+              const paidNos = new Set(repayments.filter(r => r.loan_id === l.id && r.status === "paid").map(r => r.installment_no));
+              const r = schedule(l, paidNos);
               return (
                 <div key={l.id} className="rounded-md border border-border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold">{l.loan_type === "business" ? "Business" : "Personal"} loan · KES {fmt(l.principal)}</p>
-                      <p className="text-xs text-muted-foreground">{l.term_months} months at {l.interest_rate}% p.a. · {r.paidInstalments} of {l.term_months} instalments due to date</p>
+                      <p className="text-xs text-muted-foreground">{l.term_months} months at {l.interest_rate}% p.a. · {r.paidCount} of {l.term_months} instalments paid</p>
                     </div>
                     <Badge variant={statusTone[l.status]}>{l.status}</Badge>
                   </div>
@@ -270,8 +312,43 @@ export default function Loans() {
                     <div><p className="text-xs text-muted-foreground">Monthly instalment</p><p className="font-medium tabular-nums">KES {fmt(l.monthly_payment)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Repaid to date</p><p className="font-medium tabular-nums text-success">KES {fmt(r.paid)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Outstanding</p><p className="font-medium tabular-nums">KES {fmt(r.outstanding)}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Next due</p><p className="font-medium">{r.nextDue ? r.nextDue.toLocaleDateString() : "Fully scheduled"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Next due</p><p className="font-medium">{r.nextDue ? r.nextDue.toLocaleDateString() : "Fully repaid"}</p></div>
                   </div>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-xs uppercase text-muted-foreground">
+                        <tr><th className="py-2">Instalment</th><th>Due date</th><th>Amount</th><th>Status</th><th className="text-right">Action</th></tr>
+                      </thead>
+                      <tbody>
+                        {r.items.map(it => (
+                          <tr key={it.no} className="border-t border-border">
+                            <td className="py-2">{it.no} of {l.term_months}</td>
+                            <td className="text-muted-foreground">{it.due.toLocaleDateString()}</td>
+                            <td className="tabular-nums">KES {fmt(it.amount)}</td>
+                            <td>
+                              {it.paid ? <Badge variant="default">Paid</Badge>
+                                : it.overdue ? <Badge variant="destructive">Overdue</Badge>
+                                : <Badge variant="outline">Upcoming</Badge>}
+                            </td>
+                            <td className="text-right">
+                              {!it.paid && (
+                                <Button
+                                  size="sm"
+                                  variant={it.overdue ? "default" : "outline"}
+                                  disabled={payingKey === `${l.id}-${it.no}`}
+                                  onClick={() => repay(l, it)}
+                                >
+                                  {payingKey === `${l.id}-${it.no}` ? "Paying…" : "Repay"}
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Each repayment is recorded as a deposit and confirmed by the SACCO.</p>
                   {l.purpose && <p className="mt-3 text-xs text-muted-foreground">Purpose: {l.purpose}</p>}
                 </div>
               );
@@ -279,6 +356,7 @@ export default function Loans() {
           </div>
         </Card>
       )}
+
 
       <Card className="p-6 shadow-card">
         <h4 className="font-display text-lg font-semibold mb-4">Application history</h4>

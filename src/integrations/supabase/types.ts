@@ -46,6 +46,8 @@ export type Database = {
       }
       loan_guarantors: {
         Row: {
+          admin_note: string | null
+          admin_status: Database["public"]["Enums"]["guarantor_admin_status"]
           amount: number
           created_at: string
           guarantor_id: string
@@ -53,10 +55,14 @@ export type Database = {
           loan_id: string
           requester_id: string
           response_note: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
           status: Database["public"]["Enums"]["guarantor_status"]
           updated_at: string
         }
         Insert: {
+          admin_note?: string | null
+          admin_status?: Database["public"]["Enums"]["guarantor_admin_status"]
           amount?: number
           created_at?: string
           guarantor_id: string
@@ -64,10 +70,14 @@ export type Database = {
           loan_id: string
           requester_id: string
           response_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["guarantor_status"]
           updated_at?: string
         }
         Update: {
+          admin_note?: string | null
+          admin_status?: Database["public"]["Enums"]["guarantor_admin_status"]
           amount?: number
           created_at?: string
           guarantor_id?: string
@@ -75,6 +85,8 @@ export type Database = {
           loan_id?: string
           requester_id?: string
           response_note?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
           status?: Database["public"]["Enums"]["guarantor_status"]
           updated_at?: string
         }
@@ -84,6 +96,63 @@ export type Database = {
             columns: ["loan_id"]
             isOneToOne: false
             referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      loan_repayments: {
+        Row: {
+          amount: number
+          created_at: string
+          due_date: string | null
+          id: string
+          installment_no: number
+          loan_id: string
+          paid_at: string
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          installment_no: number
+          loan_id: string
+          paid_at?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          due_date?: string | null
+          id?: string
+          installment_no?: number
+          loan_id?: string
+          paid_at?: string
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "loan_repayments_loan_id_fkey"
+            columns: ["loan_id"]
+            isOneToOne: false
+            referencedRelation: "loans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "loan_repayments_transaction_id_fkey"
+            columns: ["transaction_id"]
+            isOneToOne: false
+            referencedRelation: "transactions"
             referencedColumns: ["id"]
           },
         ]
@@ -414,6 +483,7 @@ export type Database = {
     }
     Enums: {
       app_role: "member" | "teller" | "credit_officer" | "auditor" | "admin"
+      guarantor_admin_status: "pending" | "approved" | "rejected"
       guarantor_status: "pending" | "accepted" | "declined"
       kyc_doc_type:
         | "national_id_front"
@@ -564,6 +634,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["member", "teller", "credit_officer", "auditor", "admin"],
+      guarantor_admin_status: ["pending", "approved", "rejected"],
       guarantor_status: ["pending", "accepted", "declined"],
       kyc_doc_type: [
         "national_id_front",
