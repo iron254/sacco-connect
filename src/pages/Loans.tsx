@@ -65,22 +65,25 @@ function addMonths(date: Date, n: number) {
   return d;
 }
 
-function repayment(loan: Loan) {
+type Repayment = { id: string; loan_id: string; installment_no: number; amount: number; status: string; paid_at: string };
+
+function schedule(loan: Loan, paidNos: Set<number>) {
   const start = new Date(loan.approved_at || loan.created_at);
   const now = new Date();
-  const monthsElapsed = Math.max(
-    0,
-    (now.getFullYear() - start.getFullYear()) * 12 + (now.getMonth() - start.getMonth()) -
-      (now.getDate() < start.getDate() ? 1 : 0)
-  );
-  const paidInstalments = Math.min(monthsElapsed, loan.term_months);
+  const items = Array.from({ length: loan.term_months }, (_, i) => {
+    const no = i + 1;
+    const due = addMonths(start, no);
+    return { no, due, amount: loan.monthly_payment, paid: paidNos.has(no), overdue: !paidNos.has(no) && due <= now };
+  });
   const total = loan.monthly_payment * loan.term_months;
-  const paid = loan.status === "closed" ? total : loan.monthly_payment * paidInstalments;
+  const paidCount = items.filter(i => i.paid).length;
+  const paid = loan.monthly_payment * paidCount;
   const outstanding = Math.max(0, total - paid);
   const pct = total > 0 ? Math.min(100, (paid / total) * 100) : 0;
-  const nextDue = paidInstalments < loan.term_months ? addMonths(start, paidInstalments + 1) : null;
-  return { total, paid, outstanding, pct, paidInstalments, nextDue };
+  const next = items.find(i => !i.paid) || null;
+  return { items, total, paid, outstanding, pct, paidCount, nextDue: next?.due ?? null, next };
 }
+
 
 export default function Loans() {
   const { user } = useAuth();
