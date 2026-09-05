@@ -296,13 +296,14 @@ export default function Loans() {
           <h4 className="font-display text-lg font-semibold">Repayment status</h4>
           <div className="mt-4 space-y-6">
             {activeLoans.map(l => {
-              const r = repayment(l);
+              const paidNos = new Set(repayments.filter(r => r.loan_id === l.id && r.status === "paid").map(r => r.installment_no));
+              const r = schedule(l, paidNos);
               return (
                 <div key={l.id} className="rounded-md border border-border p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
                       <p className="text-sm font-semibold">{l.loan_type === "business" ? "Business" : "Personal"} loan · KES {fmt(l.principal)}</p>
-                      <p className="text-xs text-muted-foreground">{l.term_months} months at {l.interest_rate}% p.a. · {r.paidInstalments} of {l.term_months} instalments due to date</p>
+                      <p className="text-xs text-muted-foreground">{l.term_months} months at {l.interest_rate}% p.a. · {r.paidCount} of {l.term_months} instalments paid</p>
                     </div>
                     <Badge variant={statusTone[l.status]}>{l.status}</Badge>
                   </div>
@@ -311,8 +312,43 @@ export default function Loans() {
                     <div><p className="text-xs text-muted-foreground">Monthly instalment</p><p className="font-medium tabular-nums">KES {fmt(l.monthly_payment)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Repaid to date</p><p className="font-medium tabular-nums text-success">KES {fmt(r.paid)}</p></div>
                     <div><p className="text-xs text-muted-foreground">Outstanding</p><p className="font-medium tabular-nums">KES {fmt(r.outstanding)}</p></div>
-                    <div><p className="text-xs text-muted-foreground">Next due</p><p className="font-medium">{r.nextDue ? r.nextDue.toLocaleDateString() : "Fully scheduled"}</p></div>
+                    <div><p className="text-xs text-muted-foreground">Next due</p><p className="font-medium">{r.nextDue ? r.nextDue.toLocaleDateString() : "Fully repaid"}</p></div>
                   </div>
+
+                  <div className="mt-4 overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead className="text-left text-xs uppercase text-muted-foreground">
+                        <tr><th className="py-2">Instalment</th><th>Due date</th><th>Amount</th><th>Status</th><th className="text-right">Action</th></tr>
+                      </thead>
+                      <tbody>
+                        {r.items.map(it => (
+                          <tr key={it.no} className="border-t border-border">
+                            <td className="py-2">{it.no} of {l.term_months}</td>
+                            <td className="text-muted-foreground">{it.due.toLocaleDateString()}</td>
+                            <td className="tabular-nums">KES {fmt(it.amount)}</td>
+                            <td>
+                              {it.paid ? <Badge variant="default">Paid</Badge>
+                                : it.overdue ? <Badge variant="destructive">Overdue</Badge>
+                                : <Badge variant="outline">Upcoming</Badge>}
+                            </td>
+                            <td className="text-right">
+                              {!it.paid && (
+                                <Button
+                                  size="sm"
+                                  variant={it.overdue ? "default" : "outline"}
+                                  disabled={payingKey === `${l.id}-${it.no}`}
+                                  onClick={() => repay(l, it)}
+                                >
+                                  {payingKey === `${l.id}-${it.no}` ? "Paying…" : "Repay"}
+                                </Button>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                  <p className="mt-2 text-xs text-muted-foreground">Each repayment is recorded as a deposit and confirmed by the SACCO.</p>
                   {l.purpose && <p className="mt-3 text-xs text-muted-foreground">Purpose: {l.purpose}</p>}
                 </div>
               );
@@ -320,6 +356,7 @@ export default function Loans() {
           </div>
         </Card>
       )}
+
 
       <Card className="p-6 shadow-card">
         <h4 className="font-display text-lg font-semibold mb-4">Application history</h4>
