@@ -97,6 +97,9 @@ export default function Loans() {
   const [purposeCategory, setPurposeCategory] = useState<string>("School fees");
   const [purposeDetails, setPurposeDetails] = useState("");
   const [loanType, setLoanType] = useState<"personal" | "business">("personal");
+  const [repayments, setRepayments] = useState<Repayment[]>([]);
+  const [savingsWalletId, setSavingsWalletId] = useState<string | null>(null);
+  const [payingKey, setPayingKey] = useState<string | null>(null);
 
   const eligibility = shares * MULTIPLIER;
   const principalNum = Number(principal) || 0;
@@ -106,17 +109,52 @@ export default function Loans() {
 
   const load = useCallback(async () => {
     if (!user) return;
-    const [{ data: ws }, { data: ls }, { data: prof }] = await Promise.all([
-      supabase.from("wallets").select("balance, wallet_type").eq("user_id", user.id).eq("wallet_type", "shares").maybeSingle(),
+    const [{ data: ws }, { data: ls }, { data: prof }, { data: rp }] = await Promise.all([
+      supabase.from("wallets").select("id, balance, wallet_type").eq("user_id", user.id).in("wallet_type", ["shares", "savings"]),
       supabase.from("loans").select("*").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("profiles").select("kyc_status").eq("id", user.id).maybeSingle(),
+      supabase.from("loan_repayments").select("id, loan_id, installment_no, amount, status, paid_at").eq("user_id", user.id),
     ]);
-    setShares(Number(ws?.balance || 0));
+    const wallets = (ws || []) as { id: string; balance: number; wallet_type: string }[];
+    setShares(Number(wallets.find(w => w.wallet_type === "shares")?.balance || 0));
+    setSavingsWalletId(wallets.find(w => w.wallet_type === "savings")?.id ?? null);
     setLoans((ls || []) as Loan[]);
     setKyc(prof?.kyc_status || "pending");
+    setRepayments(((rp || []) as any[]).map(r => ({ ...r, amount: Number(r.amount) })) as Repayment[]);
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
+
+  const repay = async (loan: Loan, instalment: { no: number; due: Date; amount: number }) => {
+    if (!user) return;
+    if (!savingsWalletId) return toast.error("Savings wallet not found");
+    const key = `${loan.id}-${instalment.no}`;
+    setPayingKey(key);
+    const { data: tx, error: txErr } = await supabase.from("transactions").insert({
+      user_id: user.id,
+      wallet_id: savingsWalletId,
+      tx_type: "deposit",
+      amount: Number(instalment.amount.toFixed(2)),
+      method: "mpesa",
+      status: "pending",
+      description: `Loan repayment · instalment ${instalment.no} of ${loan.term_months}`,
+    }).select("id").single();
+    if (txErr) { setPayingKey(null); return toast.error(txErr.message); }
+    const { error } = await supabase.from("loan_repayments").insert({
+      loan_id: loan.id,
+      user_id: user.id,
+      installment_no: instalment.no,
+      amount: Number(instalment.amount.toFixed(2)),
+      due_date: instalment.due.toISOString().slice(0, 10),
+      status: "paid",
+      transaction_id: tx.id,
+    });
+    setPayingKey(null);
+    if (error) return toast.error(error.message.includes("duplicate") ? "That instalment is already paid" : error.message);
+    toast.success(`Instalment ${instalment.no} marked paid — deposit recorded`);
+    load();
+  };
+
 
   const hasPending = loans.some(l => l.status === "pending");
   const activeLoans = loans.filter(l => l.status === "active" || l.status === "approved");
