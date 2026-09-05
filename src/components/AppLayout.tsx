@@ -3,13 +3,13 @@ import { useAuth } from "@/hooks/useAuth";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Bell, Settings, LogOut, ShieldCheck, Shield, ChevronDown, ArrowLeft } from "lucide-react";
+import { LayoutDashboard, Wallet, HandCoins, Users, FileText, Settings, LogOut, ShieldCheck, Shield, ChevronDown, ArrowLeft } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useAdmin } from "@/hooks/useAdmin";
-import { useNotifications } from "@/hooks/useNotifications";
+
 
 
 const nav = [
@@ -18,14 +18,12 @@ const nav = [
   { to: "/loans", icon: HandCoins, label: "Loans" },
   { to: "/guarantors", icon: Users, label: "Guarantors" },
   { to: "/statements", icon: FileText, label: "Statements" },
-  { to: "/notifications", icon: Bell, label: "Notifications" },
 ];
 
 export default function AppLayout() {
   const { user, signOut } = useAuth();
   const navigate = useNavigate();
   const { isAdmin } = useAdmin();
-  const { unread } = useNotifications();
   const [profile, setProfile] = useState<{ full_name: string | null; member_number: string | null; kyc_status: string } | null>(null);
 
 
@@ -54,9 +52,6 @@ export default function AppLayout() {
             )}>
               <Icon className="h-4 w-4" />
               <span className="flex-1">{label}</span>
-              {to === "/notifications" && unread > 0 && (
-                <span className="rounded-full bg-accent px-1.5 py-0.5 text-[10px] font-semibold text-accent-foreground">{unread}</span>
-              )}
             </NavLink>
           ))}
           {isAdmin && (
@@ -95,12 +90,6 @@ export default function AppLayout() {
             </div>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={() => navigate("/notifications")} aria-label="Notifications" className="relative rounded-full p-2 text-muted-foreground hover:bg-muted hover:text-foreground">
-              <Bell className="h-5 w-5" />
-              {unread > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold text-destructive-foreground">{unread}</span>
-              )}
-            </button>
             {profile?.kyc_status === "verified" ? (
               <span className="hidden items-center gap-1.5 rounded-full bg-success-soft px-3 py-1 text-xs font-medium text-success sm:inline-flex">
                 <ShieldCheck className="h-3.5 w-3.5" /> KYC verified
