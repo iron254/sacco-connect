@@ -23,10 +23,23 @@ type GuarantorRow = {
   status: "pending" | "accepted" | "declined";
   response_note: string | null;
   created_at: string;
+  admin_status: "pending" | "approved" | "rejected";
+  admin_note: string | null;
+  reviewed_at: string | null;
 };
 
 const fmt = (n: number) => Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const tone: Record<string, "default" | "secondary" | "destructive"> = { accepted: "default", pending: "secondary", declined: "destructive" };
+const tone: Record<string, "default" | "secondary" | "destructive"> = { accepted: "default", approved: "default", pending: "secondary", declined: "destructive", rejected: "destructive" };
+
+function AdminReview({ status, note }: { status: string; note: string | null }) {
+  return (
+    <div className="mt-1 text-xs">
+      <span className="text-muted-foreground">SACCO review: </span>
+      <Badge variant={tone[status]} className="capitalize">{status}</Badge>
+      {note && <span className="ml-2 italic text-muted-foreground">"{note}"</span>}
+    </div>
+  );
+}
 
 export default function Guarantors() {
   const { user } = useAuth();
@@ -191,6 +204,7 @@ export default function Guarantors() {
                       <p className="text-xs text-muted-foreground">
                         Guarantee KES {fmt(r.amount)} · requested {new Date(r.created_at).toLocaleDateString()}
                       </p>
+                      <AdminReview status={r.admin_status} note={r.admin_note} />
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge variant={tone[r.status]} className="capitalize">{r.status}</Badge>
@@ -223,6 +237,7 @@ export default function Guarantors() {
                     <p className="text-sm font-medium">{names[r.guarantor_id] || "Member"}</p>
                     <p className="text-xs text-muted-foreground">{loanLabel(r.loan_id)} · KES {fmt(r.amount)} guaranteed</p>
                     {r.response_note && <p className="mt-1 text-xs italic text-muted-foreground">"{r.response_note}"</p>}
+                    <AdminReview status={r.admin_status} note={r.admin_note} />
                   </div>
                   <div className="flex items-center gap-2">
                     <Badge variant={tone[r.status]} className="capitalize">{r.status}</Badge>

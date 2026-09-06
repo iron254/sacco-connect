@@ -455,6 +455,15 @@ export type Database = {
         }[]
       }
       claim_admin_if_none: { Args: never; Returns: boolean }
+      create_self_notification: {
+        Args: {
+          _body?: string
+          _category?: string
+          _link?: string
+          _title: string
+        }
+        Returns: string
+      }
       find_member_by_number: {
         Args: { _member_number: string }
         Returns: {
