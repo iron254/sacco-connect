@@ -109,6 +109,7 @@ export default function Admin() {
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="kyc">KYC review</TabsTrigger>
           <TabsTrigger value="loans">Loans {summary.pendingLoans > 0 && <Badge variant="secondary" className="ml-1.5">{summary.pendingLoans}</Badge>}</TabsTrigger>
+          <TabsTrigger value="guarantors">Guarantors</TabsTrigger>
           <TabsTrigger value="transactions">Transactions</TabsTrigger>
           <TabsTrigger value="wallets">Wallets</TabsTrigger>
           <TabsTrigger value="roles">Roles</TabsTrigger>
@@ -118,6 +119,7 @@ export default function Admin() {
         <TabsContent value="members"><MembersTab /></TabsContent>
         <TabsContent value="kyc"><KycTab onChange={loadSummary} /></TabsContent>
         <TabsContent value="loans"><LoansTab onChange={loadSummary} /></TabsContent>
+        <TabsContent value="guarantors"><GuarantorsTab /></TabsContent>
         <TabsContent value="transactions"><TransactionsTab /></TabsContent>
         <TabsContent value="wallets"><WalletsTab totals={summary.totals} /></TabsContent>
         <TabsContent value="roles"><RolesTab /></TabsContent>
@@ -352,6 +354,7 @@ function LoansTab({ onChange }: { onChange: () => void }) {
   const [loading, setLoading] = useState(false);
   const [tick, setTick] = useState(0);
   const [rejectFor, setRejectFor] = useState<Loan | null>(null);
+  const [repayMap, setRepayMap] = useState<Record<string, { count: number; paid: number }>>({});
   const [rejectReason, setRejectReason] = useState("");
   const [bulkReject, setBulkReject] = useState(false);
   const [bulkRejectReason, setBulkRejectReason] = useState("");
@@ -371,7 +374,22 @@ function LoansTab({ onChange }: { onChange: () => void }) {
       if (cancelled) return;
       const list = (data || []).map((x: any) => ({ ...x, principal: Number(x.principal), monthly_payment: Number(x.monthly_payment) })) as Loan[];
       setRows(list); setTotal(count ?? 0);
-      setMemberMap(await fetchProfilesByIds(list.map(l => l.user_id)));
+      const [profs, reps] = await Promise.all([
+        fetchProfilesByIds(list.map(l => l.user_id)),
+        list.length
+          ? supabase.from("loan_repayments").select("loan_id, amount, status").in("loan_id", list.map(l => l.id))
+          : Promise.resolve({ data: [] as any[] }),
+      ]);
+      if (cancelled) return;
+      setMemberMap(profs);
+      const rmap: Record<string, { count: number; paid: number }> = {};
+      ((reps as any).data || []).forEach((r: any) => {
+        if (r.status !== "paid") return;
+        const e = rmap[r.loan_id] || { count: 0, paid: 0 };
+        e.count += 1; e.paid += Number(r.amount);
+        rmap[r.loan_id] = e;
+      });
+      setRepayMap(rmap);
       setLoading(false);
     })();
     return () => { cancelled = true; };
@@ -449,7 +467,7 @@ function LoansTab({ onChange }: { onChange: () => void }) {
             <thead className="text-left text-xs uppercase text-muted-foreground">
               <tr>
                 <th className="w-8 py-2"><Checkbox checked={allChecked ? true : someChecked ? "indeterminate" : false} onCheckedChange={toggleAll} /></th>
-                <th>Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th>
+                <th>Applied</th><th>Member</th><th>Amount</th><th>Term</th><th>Monthly</th><th>Repayment</th><th>Purpose</th><th>Status</th><th className="text-right">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -463,6 +481,23 @@ function LoansTab({ onChange }: { onChange: () => void }) {
                     <td className="font-medium tabular-nums">KES {fmt(l.principal)}</td>
                     <td>{l.term_months} mo</td>
                     <td className="tabular-nums">KES {fmt(l.monthly_payment)}</td>
+                    <td className="min-w-[140px] text-xs">
+                      {l.status === "approved" || l.status === "active" || l.status === "closed" ? (() => {
+                        const r = repayMap[l.id] || { count: 0, paid: 0 };
+                        const total = l.monthly_payment * l.term_months;
+                        const pct = total > 0 ? Math.min(100, (r.paid / total) * 100) : 0;
+                        return (
+                          <>
+                            <div className="h-1.5 w-full overflow-hidden rounded bg-muted">
+                              <div className="h-full bg-primary" style={{ width: `${pct}%` }} />
+                            </div>
+                            <div className="mt-1 tabular-nums text-muted-foreground">
+                              {r.count}/{l.term_months} paid · KES {fmt(r.paid)} of {fmt(total)}
+                            </div>
+                          </>
+                        );
+                      })() : <span className="text-muted-foreground">—</span>}
+                    </td>
                     <td className="max-w-xs text-xs text-muted-foreground">{l.purpose || "—"}{l.rejection_reason && <div className="mt-1 text-destructive">Rejected: {l.rejection_reason}</div>}</td>
                     <td><Badge variant={l.status === "approved" || l.status === "active" ? "default" : l.status === "rejected" ? "destructive" : l.status === "closed" ? "outline" : "secondary"}>{l.status}</Badge></td>
                     <td className="text-right">
@@ -778,5 +813,147 @@ function RolesTab() {
       </div>
       <Pager page={page} setPage={setPage} total={total} loading={loading} />
     </Card>
+  );
+}
+
+/* -------------------- Guarantor review -------------------- */
+type GuarantorReviewRow = {
+  id: string; loan_id: string; requester_id: string; guarantor_id: string; amount: number;
+  status: string; admin_status: "pending" | "approved" | "rejected"; admin_note: string | null;
+  response_note: string | null; created_at: string;
+};
+
+function GuarantorsTab() {
+  const [statusF, setStatusF] = useState<string>("pending");
+  const [page, setPage] = useState(1);
+  const [rows, setRows] = useState<GuarantorReviewRow[]>([]);
+  const [memberMap, setMemberMap] = useState<Map<string, Profile>>(new Map());
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [tick, setTick] = useState(0);
+  const [reviewFor, setReviewFor] = useState<{ row: GuarantorReviewRow; decision: "approved" | "rejected" } | null>(null);
+  const [note, setNote] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => { setPage(1); }, [statusF]);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      let q = supabase.from("loan_guarantors").select("*", { count: "exact" });
+      if (statusF !== "all") q = q.eq("admin_status", statusF as any);
+      const from = (page - 1) * PAGE;
+      const { data, count } = await q.order("created_at", { ascending: false }).range(from, from + PAGE - 1);
+      if (cancelled) return;
+      const list = (data || []).map((x: any) => ({ ...x, amount: Number(x.amount) })) as GuarantorReviewRow[];
+      setRows(list); setTotal(count ?? 0);
+      setMemberMap(await fetchProfilesByIds(list.flatMap(r => [r.requester_id, r.guarantor_id])));
+      setLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [statusF, page, tick]);
+
+  const submitReview = async () => {
+    if (!reviewFor) return;
+    if (reviewFor.decision === "rejected" && !note.trim()) {
+      return toast({ title: "Reason required", variant: "destructive" });
+    }
+    setBusy(true);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase.from("loan_guarantors").update({
+      admin_status: reviewFor.decision,
+      admin_note: note.trim() || null,
+      reviewed_by: auth.user?.id ?? null,
+      reviewed_at: new Date().toISOString(),
+    }).eq("id", reviewFor.row.id);
+    setBusy(false);
+    if (error) return toast({ title: "Failed", description: error.message, variant: "destructive" });
+    toast({ title: `Guarantor backing ${reviewFor.decision}` });
+    setReviewFor(null); setNote("");
+    setTick(t => t + 1);
+  };
+
+  const label = (id: string) => {
+    const m = memberMap.get(id);
+    return m?.full_name || m?.member_number || "Member";
+  };
+
+  return (
+    <>
+      <Card className="mt-4 p-4 shadow-card">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <Select value={statusF} onValueChange={setStatusF}>
+            <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="pending">Awaiting review</SelectItem>
+              <SelectItem value="approved">Approved</SelectItem>
+              <SelectItem value="rejected">Rejected</SelectItem>
+              <SelectItem value="all">All</SelectItem>
+            </SelectContent>
+          </Select>
+          <span className="text-xs text-muted-foreground">{total} record(s)</span>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-left text-xs uppercase text-muted-foreground">
+              <tr><th className="py-2">Requested</th><th>Borrower</th><th>Guarantor</th><th>Amount</th><th>Guarantor reply</th><th>Review</th><th className="text-right">Actions</th></tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.id} className="border-t border-border align-top">
+                  <td className="py-3 text-xs text-muted-foreground">{new Date(r.created_at).toLocaleDateString()}</td>
+                  <td>{label(r.requester_id)}<div className="text-xs text-muted-foreground">{memberMap.get(r.requester_id)?.member_number}</div></td>
+                  <td>{label(r.guarantor_id)}<div className="text-xs text-muted-foreground">{memberMap.get(r.guarantor_id)?.member_number}</div></td>
+                  <td className="font-medium tabular-nums">KES {fmt(r.amount)}</td>
+                  <td>
+                    <Badge variant={r.status === "accepted" ? "default" : r.status === "declined" ? "destructive" : "secondary"} className="capitalize">{r.status}</Badge>
+                    {r.response_note && <div className="mt-1 text-xs italic text-muted-foreground">"{r.response_note}"</div>}
+                  </td>
+                  <td>
+                    <Badge variant={r.admin_status === "approved" ? "default" : r.admin_status === "rejected" ? "destructive" : "secondary"} className="capitalize">{r.admin_status}</Badge>
+                    {r.admin_note && <div className="mt-1 text-xs italic text-muted-foreground">"{r.admin_note}"</div>}
+                  </td>
+                  <td className="text-right">
+                    {r.admin_status === "pending" && (
+                      <div className="flex justify-end gap-2">
+                        <Button size="sm" disabled={r.status !== "accepted"} onClick={() => { setNote(""); setReviewFor({ row: r, decision: "approved" }); }}>Approve</Button>
+                        <Button size="sm" variant="destructive" onClick={() => { setNote(""); setReviewFor({ row: r, decision: "rejected" }); }}>Reject</Button>
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!loading && rows.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No guarantor requests</p>}
+        </div>
+        <Pager page={page} setPage={setPage} total={total} loading={loading} />
+      </Card>
+
+      <Dialog open={!!reviewFor} onOpenChange={(o) => { if (!o) { setReviewFor(null); setNote(""); } }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>{reviewFor?.decision === "approved" ? "Approve" : "Reject"} guarantor backing</DialogTitle></DialogHeader>
+          {reviewFor && (
+            <div className="space-y-3 text-sm">
+              <div className="rounded-md bg-muted/50 p-3">
+                <div><span className="text-muted-foreground">Borrower:</span> {label(reviewFor.row.requester_id)}</div>
+                <div><span className="text-muted-foreground">Guarantor:</span> {label(reviewFor.row.guarantor_id)}</div>
+                <div><span className="text-muted-foreground">Amount:</span> KES {fmt(reviewFor.row.amount)}</div>
+              </div>
+              <div>
+                <Label htmlFor="gnote">Note {reviewFor.decision === "rejected" ? "(required)" : "(optional)"}</Label>
+                <Textarea id="gnote" value={note} onChange={e => setNote(e.target.value)} rows={3} placeholder="Both the borrower and the guarantor will see this note." />
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReviewFor(null)} disabled={busy}>Cancel</Button>
+            <Button variant={reviewFor?.decision === "rejected" ? "destructive" : "default"} onClick={submitReview} disabled={busy}>
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }
